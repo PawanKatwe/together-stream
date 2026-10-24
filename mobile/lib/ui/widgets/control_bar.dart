@@ -6,11 +6,16 @@ class ControlBar extends StatelessWidget {
   final bool isMicMuted;
   final bool isCameraMuted;
   final bool isScreenSharing;
+  final bool isAnyScreenShareActive;
+  final bool isVideoStripVisible;
+  final bool isFullscreen;
   final ScreenQualityPreset currentPreset;
   final VoidCallback onToggleMic;
   final VoidCallback onToggleCamera;
   final VoidCallback onSwitchCamera;
   final VoidCallback onToggleScreenShare;
+  final VoidCallback onToggleVideoStrip;
+  final VoidCallback onToggleFullscreen;
   final VoidCallback onOpenQualitySheet;
   final VoidCallback onLeaveCall;
 
@@ -19,11 +24,16 @@ class ControlBar extends StatelessWidget {
     required this.isMicMuted,
     required this.isCameraMuted,
     required this.isScreenSharing,
+    required this.isAnyScreenShareActive,
+    required this.isVideoStripVisible,
+    required this.isFullscreen,
     required this.currentPreset,
     required this.onToggleMic,
     required this.onToggleCamera,
     required this.onSwitchCamera,
     required this.onToggleScreenShare,
+    required this.onToggleVideoStrip,
+    required this.onToggleFullscreen,
     required this.onOpenQualitySheet,
     required this.onLeaveCall,
   });
@@ -59,7 +69,7 @@ class ControlBar extends StatelessWidget {
             tooltip: isMicMuted ? 'Unmute Mic' : 'Mute Mic',
             onTap: onToggleMic,
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 8),
 
           // Camera Toggle
           _ControlButton(
@@ -70,7 +80,7 @@ class ControlBar extends StatelessWidget {
             tooltip: isCameraMuted ? 'Turn Camera On' : 'Turn Camera Off',
             onTap: onToggleCamera,
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 8),
 
           // Switch Front / Back Camera
           _ControlButton(
@@ -80,7 +90,7 @@ class ControlBar extends StatelessWidget {
             tooltip: 'Flip Camera',
             onTap: onSwitchCamera,
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 8),
 
           // Screen Share Toggle (Movie & Sound)
           _ControlButton(
@@ -91,7 +101,31 @@ class ControlBar extends StatelessWidget {
             tooltip: isScreenSharing ? 'Stop Screen Sharing' : 'Share Screen & Movie Sound',
             onTap: onToggleScreenShare,
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 8),
+
+          // Hide / Show Video Strip (Only visible in Screen Share mode)
+          if (isAnyScreenShareActive) ...[
+            _ControlButton(
+              icon: isVideoStripVisible ? Icons.visibility : Icons.visibility_off,
+              isActive: isVideoStripVisible,
+              activeColor: AppTheme.primaryRose,
+              inactiveColor: AppTheme.textSecondary,
+              tooltip: isVideoStripVisible ? 'Hide Faces (Full Movie Height)' : 'Show Faces',
+              onTap: onToggleVideoStrip,
+            ),
+            const SizedBox(width: 8),
+          ],
+
+          // Immersive Fullscreen Toggle
+          _ControlButton(
+            icon: isFullscreen ? Icons.fullscreen_exit : Icons.fullscreen,
+            isActive: isFullscreen,
+            activeColor: AppTheme.primaryRose,
+            inactiveColor: Colors.white70,
+            tooltip: isFullscreen ? 'Exit Fullscreen' : 'Cinema Fullscreen',
+            onTap: onToggleFullscreen,
+          ),
+          const SizedBox(width: 8),
 
           // Quality Selector
           Tooltip(
@@ -100,7 +134,7 @@ class ControlBar extends StatelessWidget {
               onTap: onOpenQualitySheet,
               borderRadius: BorderRadius.circular(20),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
                 decoration: BoxDecoration(
                   color: AppTheme.surfaceLight,
                   borderRadius: BorderRadius.circular(20),
@@ -120,14 +154,14 @@ class ControlBar extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(width: 14),
+          const SizedBox(width: 12),
 
           // End Call Button
           InkWell(
             onTap: onLeaveCall,
             borderRadius: BorderRadius.circular(24),
             child: Container(
-              padding: const EdgeInsets.all(10),
+              padding: const EdgeInsets.all(9),
               decoration: const BoxDecoration(
                 color: AppTheme.danger,
                 shape: BoxShape.circle,
@@ -135,7 +169,7 @@ class ControlBar extends StatelessWidget {
               child: const Icon(
                 Icons.call_end,
                 color: Colors.white,
-                size: 20,
+                size: 19,
               ),
             ),
           ),
@@ -171,7 +205,7 @@ class _ControlButton extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(24),
         child: Container(
-          padding: const EdgeInsets.all(9),
+          padding: const EdgeInsets.all(8.5),
           decoration: BoxDecoration(
             color: color.withOpacity(0.18),
             shape: BoxShape.circle,
@@ -183,7 +217,7 @@ class _ControlButton extends StatelessWidget {
           child: Icon(
             icon,
             color: color,
-            size: 19,
+            size: 18,
           ),
         ),
       ),

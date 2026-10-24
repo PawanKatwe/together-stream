@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:livekit_client/livekit_client.dart';
+import 'package:flutter/services.dart';
 import '../../core/config.dart';
 import '../../core/theme.dart';
 import '../../services/livekit_service.dart';
+import '../../services/overlay_service.dart';
 import '../../services/token_service.dart';
+import '../widgets/cinema_layout.dart';
 import '../widgets/control_bar.dart';
 import '../widgets/drm_notice_dialog.dart';
 import '../widgets/quality_selector_sheet.dart';
@@ -24,24 +26,61 @@ class RoomScreen extends StatefulWidget {
   State<RoomScreen> createState() => _RoomScreenState();
 }
 
-class _RoomScreenState extends State<RoomScreen> {
+class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   final LiveKitService _liveKitService = LiveKitService();
   Timer? _hideControlsTimer;
   bool _showControls = true;
   bool _isFetchingToken = true;
   String? _statusMessage;
 
+  // Phase 3 Features
+  bool _isVideoStripVisible = true;
+  bool _isFullscreen = false;
+  bool _wasScreenSharing = false;
+
   String get partnerName => AppConfig.getPartnerName(widget.myIdentity);
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _liveKitService.addListener(_onLiveKitStateChanged);
     _connectToRoom();
     _startHideControlsTimer();
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    // If the sharer leaves the app to play a movie, show the floating draggable bubble over other apps
+    if (_liveKitService.isScreenSharing) {
+      if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+        OverlayService.showFloatingBubble(partnerName);
+      } else if (state == AppLifecycleState.resumed) {
+        OverlayService.hideFloatingBubble();
+      }
+    }
+  }
+
   void _onLiveKitStateChanged() {
+    final isScreenShareActive = _liveKitService.isAnyScreenShareActive;
+
+    // Handle landscape orientation lock in screen-share mode
+    if (isScreenShareActive && !_wasScreenSharing) {
+      _wasScreenSharing = true;
+      SystemChrome.setPreferredOrientations([
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+      ]);
+    } else if (!isScreenShareActive && _wasScreenSharing) {
+      _wasScreenSharing = false;
+      SystemChrome.setPreferredOrientations([
+        DeviceOrientation.portraitUp,
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+      ]);
+    }
+
     if (mounted) setState(() {});
   }
 
@@ -98,14 +137,38 @@ class _RoomScreenState extends State<RoomScreen> {
     }
   }
 
-  void _handleScreenShareToggle() {
+  void _handleScreenShareToggle() async {
     if (_liveKitService.isScreenSharing) {
-      _liveKitService.stopScreenShare();
+      await _liveKitService.stopScreenShare();
+      await OverlayService.hideFloatingBubble();
     } else {
-      DrmNoticeDialog.showIfEnabled(context, () {
-        _liveKitService.startScreenShare();
+      // Guide user about floating bubble overlay permission
+      await OverlayService.promptOverlayPermission(context);
+
+      if (!mounted) return;
+      DrmNoticeDialog.showIfEnabled(context, () async {
+        await _liveKitService.startScreenShare();
       });
     }
+  }
+
+  void _toggleVideoStrip() {
+    setState(() {
+      _isVideoStripVisible = !_isVideoStripVisible;
+      _startHideControlsTimer();
+    });
+  }
+
+  void _toggleFullscreen() {
+    setState(() {
+      _isFullscreen = !_isFullscreen;
+      if (_isFullscreen) {
+        SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+      } else {
+        SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+      }
+      _startHideControlsTimer();
+    });
   }
 
   void _openQualitySheet() {
@@ -119,7 +182,15 @@ class _RoomScreenState extends State<RoomScreen> {
   }
 
   Future<void> _leaveCall() async {
+    await OverlayService.hideFloatingBubble();
     await _liveKitService.disconnect();
+    // Restore orientation
+    await SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
+    await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     if (mounted) {
       Navigator.of(context).pop();
     }
@@ -127,9 +198,17 @@ class _RoomScreenState extends State<RoomScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _hideControlsTimer?.cancel();
+    OverlayService.hideFloatingBubble();
     _liveKitService.removeListener(_onLiveKitStateChanged);
     _liveKitService.dispose();
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     super.dispose();
   }
 
@@ -146,10 +225,24 @@ class _RoomScreenState extends State<RoomScreen> {
         onTap: _toggleControls,
         child: Stack(
           children: [
-            // Video / Screen Share Layout
+            // Video / Cinema Canvas Layout
             SafeArea(
+              top: !_isFullscreen,
+              bottom: !_isFullscreen,
               child: isScreenShareActive
-                  ? _buildScreenShareLayout()
+                  ? CinemaLayout(
+                      screenShareTrack: _liveKitService.activeScreenShareTrack,
+                      sharerName: _liveKitService.activeSharerName ?? 'Someone',
+                      myVideoTrack: _liveKitService.localVideoTrack,
+                      partnerVideoTrack: _liveKitService.remoteVideoTrack,
+                      myName: widget.myIdentity,
+                      partnerName: partnerName,
+                      isMyMicMuted: _liveKitService.isMicMuted,
+                      isPartnerMicMuted: _liveKitService.remoteParticipant?.audioTrackPublications.firstOrNull?.isMuted ?? false,
+                      isMyCameraMuted: _liveKitService.isCameraMuted,
+                      isVideoStripVisible: _isVideoStripVisible,
+                      onToggleVideoStrip: _toggleVideoStrip,
+                    )
                   : _buildCallOnlyLayout(isLandscape),
             ),
 
@@ -198,7 +291,7 @@ class _RoomScreenState extends State<RoomScreen> {
                             const CircleAvatar(radius: 3, backgroundColor: AppTheme.success),
                             const SizedBox(width: 6),
                             Text(
-                              isScreenShareActive ? 'Cinema' : 'Live',
+                              isScreenShareActive ? 'Cinema (80/20)' : 'Live',
                               style: const TextStyle(fontSize: 11, color: AppTheme.success, fontWeight: FontWeight.bold),
                             ),
                           ],
@@ -262,11 +355,16 @@ class _RoomScreenState extends State<RoomScreen> {
                     isMicMuted: _liveKitService.isMicMuted,
                     isCameraMuted: _liveKitService.isCameraMuted,
                     isScreenSharing: _liveKitService.isScreenSharing,
+                    isAnyScreenShareActive: isScreenShareActive,
+                    isVideoStripVisible: _isVideoStripVisible,
+                    isFullscreen: _isFullscreen,
                     currentPreset: _liveKitService.currentQuality,
                     onToggleMic: _liveKitService.toggleMicrophone,
                     onToggleCamera: _liveKitService.toggleCamera,
                     onSwitchCamera: _liveKitService.switchCamera,
                     onToggleScreenShare: _handleScreenShareToggle,
+                    onToggleVideoStrip: _toggleVideoStrip,
+                    onToggleFullscreen: _toggleFullscreen,
                     onOpenQualitySheet: _openQualitySheet,
                     onLeaveCall: _leaveCall,
                   ),
@@ -324,72 +422,6 @@ class _RoomScreenState extends State<RoomScreen> {
         ),
       );
     }
-  }
-
-  // Layout 2: Screen-Share Mode (MediaProjection + System Sound active)
-  Widget _buildScreenShareLayout() {
-    final screenTrack = _liveKitService.activeScreenShareTrack;
-    final sharer = _liveKitService.activeSharerName ?? 'Someone';
-
-    return Container(
-      color: Colors.black,
-      child: Center(
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            // Letterboxed Screen Stream
-            if (screenTrack != null)
-              VideoTrackWidget(
-                screenTrack,
-                fit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
-              )
-            else
-              Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const CircularProgressIndicator(color: AppTheme.primaryRose),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Starting screen & audio stream from $sharer...',
-                      style: const TextStyle(color: AppTheme.textSecondary),
-                    ),
-                  ],
-                ),
-              ),
-
-            // Sharer Badge Indicator (Top Right)
-            Positioned(
-              top: 16,
-              right: 16,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.7),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: AppTheme.primaryRose.withOpacity(0.4)),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.movie, size: 14, color: AppTheme.primaryRoseLight),
-                    const SizedBox(width: 6),
-                    Text(
-                      '$sharer\'s Screen & Audio',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   Widget _buildWaitingTile() {

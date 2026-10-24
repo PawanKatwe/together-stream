@@ -49,6 +49,11 @@
             android:foregroundServiceType="mediaProjection"
             android:exported="false" />
 
+        <!-- Draggable Floating Bubble Overlay Service for Sharer -->
+        <service
+            android:name=".FloatingOverlayService"
+            android:exported="false" />
+
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data
