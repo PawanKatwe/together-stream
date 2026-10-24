@@ -1,10 +1,13 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:livekit_client/livekit_client.dart';
 import '../../core/config.dart';
 import '../../core/theme.dart';
 import '../../services/livekit_service.dart';
 import '../../services/token_service.dart';
 import '../widgets/control_bar.dart';
+import '../widgets/drm_notice_dialog.dart';
+import '../widgets/quality_selector_sheet.dart';
 import '../widgets/video_tile.dart';
 
 class RoomScreen extends StatefulWidget {
@@ -95,6 +98,26 @@ class _RoomScreenState extends State<RoomScreen> {
     }
   }
 
+  void _handleScreenShareToggle() {
+    if (_liveKitService.isScreenSharing) {
+      _liveKitService.stopScreenShare();
+    } else {
+      DrmNoticeDialog.showIfEnabled(context, () {
+        _liveKitService.startScreenShare();
+      });
+    }
+  }
+
+  void _openQualitySheet() {
+    QualitySelectorSheet.show(
+      context,
+      currentPreset: _liveKitService.currentQuality,
+      onSelectPreset: (preset) {
+        _liveKitService.setQualityPreset(preset);
+      },
+    );
+  }
+
   Future<void> _leaveCall() async {
     await _liveKitService.disconnect();
     if (mounted) {
@@ -114,6 +137,7 @@ class _RoomScreenState extends State<RoomScreen> {
   Widget build(BuildContext context) {
     final orientation = MediaQuery.of(context).orientation;
     final isLandscape = orientation == Orientation.landscape;
+    final isScreenShareActive = _liveKitService.isAnyScreenShareActive;
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -122,9 +146,11 @@ class _RoomScreenState extends State<RoomScreen> {
         onTap: _toggleControls,
         child: Stack(
           children: [
-            // Video Canvas Layout
+            // Video / Screen Share Layout
             SafeArea(
-              child: _buildVideoGrid(isLandscape),
+              child: isScreenShareActive
+                  ? _buildScreenShareLayout()
+                  : _buildCallOnlyLayout(isLandscape),
             ),
 
             // Top Status Bar (Identity & Room indicator)
@@ -167,11 +193,14 @@ class _RoomScreenState extends State<RoomScreen> {
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(color: AppTheme.success.withOpacity(0.5)),
                         ),
-                        child: const Row(
+                        child: Row(
                           children: [
-                            CircleAvatar(radius: 3, backgroundColor: AppTheme.success),
-                            SizedBox(width: 6),
-                            Text('Live', style: TextStyle(fontSize: 11, color: AppTheme.success, fontWeight: FontWeight.bold)),
+                            const CircleAvatar(radius: 3, backgroundColor: AppTheme.success),
+                            const SizedBox(width: 6),
+                            Text(
+                              isScreenShareActive ? 'Cinema' : 'Live',
+                              style: const TextStyle(fontSize: 11, color: AppTheme.success, fontWeight: FontWeight.bold),
+                            ),
                           ],
                         ),
                       ),
@@ -232,9 +261,13 @@ class _RoomScreenState extends State<RoomScreen> {
                   child: ControlBar(
                     isMicMuted: _liveKitService.isMicMuted,
                     isCameraMuted: _liveKitService.isCameraMuted,
+                    isScreenSharing: _liveKitService.isScreenSharing,
+                    currentPreset: _liveKitService.currentQuality,
                     onToggleMic: _liveKitService.toggleMicrophone,
                     onToggleCamera: _liveKitService.toggleCamera,
                     onSwitchCamera: _liveKitService.switchCamera,
+                    onToggleScreenShare: _handleScreenShareToggle,
+                    onOpenQualitySheet: _openQualitySheet,
                     onLeaveCall: _leaveCall,
                   ),
                 ),
@@ -246,7 +279,8 @@ class _RoomScreenState extends State<RoomScreen> {
     );
   }
 
-  Widget _buildVideoGrid(bool isLandscape) {
+  // Layout 1: Call-Only Mode (No screen share)
+  Widget _buildCallOnlyLayout(bool isLandscape) {
     final localTrack = _liveKitService.localVideoTrack;
     final remoteTrack = _liveKitService.remoteVideoTrack;
     final remoteParticipant = _liveKitService.remoteParticipant;
@@ -290,6 +324,72 @@ class _RoomScreenState extends State<RoomScreen> {
         ),
       );
     }
+  }
+
+  // Layout 2: Screen-Share Mode (MediaProjection + System Sound active)
+  Widget _buildScreenShareLayout() {
+    final screenTrack = _liveKitService.activeScreenShareTrack;
+    final sharer = _liveKitService.activeSharerName ?? 'Someone';
+
+    return Container(
+      color: Colors.black,
+      child: Center(
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // Letterboxed Screen Stream
+            if (screenTrack != null)
+              VideoTrackWidget(
+                screenTrack,
+                fit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
+              )
+            else
+              Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const CircularProgressIndicator(color: AppTheme.primaryRose),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Starting screen & audio stream from $sharer...',
+                      style: const TextStyle(color: AppTheme.textSecondary),
+                    ),
+                  ],
+                ),
+              ),
+
+            // Sharer Badge Indicator (Top Right)
+            Positioned(
+              top: 16,
+              right: 16,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.7),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: AppTheme.primaryRose.withOpacity(0.4)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.movie, size: 14, color: AppTheme.primaryRoseLight),
+                    const SizedBox(width: 6),
+                    Text(
+                      '$sharer\'s Screen & Audio',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildWaitingTile() {

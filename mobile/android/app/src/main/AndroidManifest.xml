@@ -43,6 +43,12 @@
             </intent-filter>
         </activity>
 
+        <!-- Android 14+ Foreground Service for MediaProjection Screen Capture -->
+        <service
+            android:name="com.cloudwebrtc.webrtc.FlutterRTCService"
+            android:foregroundServiceType="mediaProjection"
+            android:exported="false" />
+
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

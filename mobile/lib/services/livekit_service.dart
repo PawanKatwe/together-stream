@@ -3,6 +3,20 @@ import 'package:flutter/foundation.dart';
 import 'package:livekit_client/livekit_client.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+enum ScreenQualityPreset {
+  p480('480p (Low Data)', 854, 480, 24, 800000),
+  p720('720p (Recommended)', 1280, 720, 30, 2500000),
+  p1080('1080p (Crisp HD)', 1920, 1080, 30, 4500000);
+
+  final String label;
+  final int width;
+  final int height;
+  final int frameRate;
+  final int bitrate;
+
+  const ScreenQualityPreset(this.label, this.width, this.height, this.frameRate, this.bitrate);
+}
+
 class LiveKitService extends ChangeNotifier {
   Room? _room;
   EventsListener<RoomEvent>? _listener;
@@ -13,6 +27,8 @@ class LiveKitService extends ChangeNotifier {
 
   bool _isMicMuted = false;
   bool _isCameraMuted = false;
+  bool _isScreenSharing = false;
+  ScreenQualityPreset _currentQuality = ScreenQualityPreset.p720;
   CameraPosition _cameraPosition = CameraPosition.front;
 
   Room? get room => _room;
@@ -21,36 +37,50 @@ class LiveKitService extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
   bool get isMicMuted => _isMicMuted;
   bool get isCameraMuted => _isCameraMuted;
+  bool get isScreenSharing => _isScreenSharing;
+  ScreenQualityPreset get currentQuality => _currentQuality;
   CameraPosition get cameraPosition => _cameraPosition;
 
   LocalParticipant? get localParticipant => _room?.localParticipant;
   RemoteParticipant? get remoteParticipant => _room?.remoteParticipants.values.firstOrNull;
 
+  // Local Camera Video Track
   VideoTrack? get localVideoTrack {
     final pubs = localParticipant?.videoTrackPublications;
     if (pubs == null || pubs.isEmpty) return null;
-    // Prefer camera track (not screen share)
     for (final pub in pubs) {
       if (pub.source == TrackSource.camera && pub.track != null) {
         return pub.track as VideoTrack;
       }
     }
-    return pubs.first.track as VideoTrack?;
+    return null;
   }
 
+  // Local Screen Share Track
+  VideoTrack? get localScreenShareTrack {
+    final pubs = localParticipant?.videoTrackPublications;
+    if (pubs == null) return null;
+    for (final pub in pubs) {
+      if (pub.source == TrackSource.screenShareVideo && pub.track != null) {
+        return pub.track as VideoTrack;
+      }
+    }
+    return null;
+  }
+
+  // Remote Camera Video Track
   VideoTrack? get remoteVideoTrack {
     final participant = remoteParticipant;
     if (participant == null) return null;
-    final pubs = participant.videoTrackPublications;
-    if (pubs.isEmpty) return null;
-    for (final pub in pubs) {
+    for (final pub in participant.videoTrackPublications) {
       if (pub.source == TrackSource.camera && pub.track != null) {
         return pub.track as VideoTrack;
       }
     }
-    return pubs.first.track as VideoTrack?;
+    return null;
   }
 
+  // Remote Screen Share Video Track
   VideoTrack? get remoteScreenShareTrack {
     final participant = remoteParticipant;
     if (participant == null) return null;
@@ -62,10 +92,30 @@ class LiveKitService extends ChangeNotifier {
     return null;
   }
 
-  // Request camera and microphone permissions explicitly
+  // Any screen share active (either I am sharing or partner is sharing)
+  bool get isAnyScreenShareActive => _isScreenSharing || remoteScreenShareTrack != null;
+
+  // Active Screen Share Track to display
+  VideoTrack? get activeScreenShareTrack {
+    return remoteScreenShareTrack ?? localScreenShareTrack;
+  }
+
+  // Who is currently sharing
+  String? get activeSharerName {
+    if (_isScreenSharing) return localParticipant?.name ?? 'You';
+    if (remoteScreenShareTrack != null) return remoteParticipant?.name ?? 'Partner';
+    return null;
+  }
+
+  // Request permissions explicitly
   Future<bool> requestPermissions() async {
     final cameraStatus = await Permission.camera.request();
     final micStatus = await Permission.microphone.request();
+
+    // Android 13+ requires notification permission for foreground services
+    if (await Permission.notification.isRestricted || await Permission.notification.isDenied) {
+      await Permission.notification.request();
+    }
 
     if (!cameraStatus.isGranted || !micStatus.isGranted) {
       _errorMessage = 'Camera and Microphone permissions are required to start the video call.';
@@ -132,6 +182,7 @@ class LiveKitService extends ChangeNotifier {
       })
       ..on<RoomDisconnectedEvent>((_) {
         _isConnected = false;
+        _isScreenSharing = false;
         notifyListeners();
       })
       ..on<ParticipantConnectedEvent>((_) {
@@ -150,6 +201,12 @@ class LiveKitService extends ChangeNotifier {
         notifyListeners();
       })
       ..on<TrackUnmutedEvent>((_) {
+        notifyListeners();
+      })
+      ..on<LocalTrackPublishedEvent>((_) {
+        notifyListeners();
+      })
+      ..on<LocalTrackUnpublishedEvent>((_) {
         notifyListeners();
       });
   }
@@ -201,9 +258,85 @@ class LiveKitService extends ChangeNotifier {
     }
   }
 
+  // Start Screen Share with System Audio (AudioPlaybackCapture)
+  Future<bool> startScreenShare({ScreenQualityPreset? preset}) async {
+    final participant = _room?.localParticipant;
+    if (participant == null) return false;
+
+    if (preset != null) {
+      _currentQuality = preset;
+    }
+
+    try {
+      // Ensure notification permission is granted on Android 13+
+      await Permission.notification.request();
+
+      final captureOptions = ScreenShareCaptureOptions(
+        useSystemAudio: true, // Enables AudioPlaybackCapture for movie sound
+        params: VideoParameters(
+          dimensions: VideoDimensions(width: _currentQuality.width, height: _currentQuality.height),
+          maxBitrate: _currentQuality.bitrate,
+          maxFramerate: _currentQuality.frameRate,
+        ),
+      );
+
+      await participant.setScreenShareEnabled(
+        true,
+        captureScreenAudio: true,
+        screenShareCaptureOptions: captureOptions,
+      );
+
+      _isScreenSharing = true;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      debugPrint('Error starting screen share: $e');
+      _isScreenSharing = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // Stop Screen Share
+  Future<void> stopScreenShare() async {
+    final participant = _room?.localParticipant;
+    if (participant == null) return;
+
+    try {
+      await participant.setScreenShareEnabled(false);
+    } catch (e) {
+      debugPrint('Error stopping screen share: $e');
+    } finally {
+      _isScreenSharing = false;
+      notifyListeners();
+    }
+  }
+
+  // Toggle Screen Share
+  Future<void> toggleScreenShare() async {
+    if (_isScreenSharing) {
+      await stopScreenShare();
+    } else {
+      await startScreenShare();
+    }
+  }
+
+  // Change Screen Quality Preset
+  Future<void> setQualityPreset(ScreenQualityPreset newPreset) async {
+    _currentQuality = newPreset;
+    notifyListeners();
+    if (_isScreenSharing) {
+      // Restart screen share with new quality parameters
+      await startScreenShare(preset: newPreset);
+    }
+  }
+
   // Leave room and clean up resources
   Future<void> disconnect() async {
     try {
+      if (_isScreenSharing) {
+        await stopScreenShare();
+      }
       _listener?.dispose();
       await _room?.disconnect();
       await _room?.dispose();
@@ -216,6 +349,7 @@ class LiveKitService extends ChangeNotifier {
       _isConnecting = false;
       _isMicMuted = false;
       _isCameraMuted = false;
+      _isScreenSharing = false;
       notifyListeners();
     }
   }
