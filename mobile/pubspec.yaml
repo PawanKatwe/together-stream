@@ -1,0 +1,26 @@
+name: together_stream
+description: Private watch-together video calling app for Pawan & Priya.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+  flutter: '>=3.19.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  livekit_client: ^2.2.0
+  flutter_webrtc: ^0.11.7
+  shared_preferences: ^2.2.3
+  http: ^1.2.1
+  permission_handler: ^11.3.1
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true

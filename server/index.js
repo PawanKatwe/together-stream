@@ -1,0 +1,101 @@
+import express from 'express';
+import cors from 'cors';
+import dotenv from 'dotenv';
+import { AccessToken } from 'livekit-server-sdk';
+
+dotenv.config();
+
+const app = express();
+const port = process.env.PORT || 3000;
+
+// Configuration from environment variables
+const LIVEKIT_API_KEY = process.env.LIVEKIT_API_KEY;
+const LIVEKIT_API_SECRET = process.env.LIVEKIT_API_SECRET;
+const LIVEKIT_URL = process.env.LIVEKIT_URL;
+const APP_PASSCODE = process.env.APP_PASSCODE || 'PP@160227';
+const FIXED_ROOM_NAME = process.env.ROOM_NAME || 'PP';
+
+app.use(cors());
+app.use(express.json());
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    service: 'TogetherStream Token Server',
+    room: FIXED_ROOM_NAME,
+    timestamp: new Date().toISOString()
+  });
+});
+
+app.get('/', (req, res) => {
+  res.json({
+    message: 'TogetherStream private server running. POST /token to acquire an access token.'
+  });
+});
+
+// Primary Token Minting Endpoint
+app.post('/token', async (req, res) => {
+  try {
+    const { identity, passcode } = req.body;
+
+    // 1. Validate Secret Passcode
+    if (!passcode || passcode !== APP_PASSCODE) {
+      return res.status(401).json({
+        error: 'Unauthorized: Invalid passcode'
+      });
+    }
+
+    // 2. Validate Identity
+    if (!identity || typeof identity !== 'string' || identity.trim().length === 0) {
+      return res.status(400).json({
+        error: 'Bad Request: Identity is required'
+      });
+    }
+
+    const cleanIdentity = identity.trim();
+
+    // 3. Verify Server LiveKit Credentials
+    if (!LIVEKIT_API_KEY || !LIVEKIT_API_SECRET || !LIVEKIT_URL) {
+      return res.status(500).json({
+        error: 'Server Misconfiguration: LIVEKIT_API_KEY, LIVEKIT_API_SECRET, or LIVEKIT_URL is missing'
+      });
+    }
+
+    // 4. Create Access Token with 8-Hour Lifetime
+    const at = new AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, {
+      identity: cleanIdentity,
+      name: cleanIdentity,
+      ttl: '8h', // 8 hours for movie dates
+    });
+
+    // Grant Room & Media Permissions
+    at.addGrant({
+      roomJoin: true,
+      room: FIXED_ROOM_NAME,
+      canPublish: true,
+      canSubscribe: true,
+      canPublishData: true,
+    });
+
+    const jwtToken = await at.toJwt();
+
+    return res.json({
+      token: jwtToken,
+      url: LIVEKIT_URL,
+      room: FIXED_ROOM_NAME,
+      identity: cleanIdentity
+    });
+  } catch (err) {
+    console.error('Error generating token:', err);
+    return res.status(500).json({
+      error: 'Failed to mint token',
+      details: err.message
+    });
+  }
+});
+
+app.listen(port, () => {
+  console.log(`TogetherStream token server listening on port ${port}`);
+  console.log(`Configured Room: ${FIXED_ROOM_NAME}`);
+});
