@@ -79,6 +79,22 @@ class _SetupScreenState extends State<SetupScreen> {
                   child: const Text('Save URL'),
                 ),
               ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: TextButton(
+                  onPressed: () {
+                    setState(() {
+                      _urlController.text = AppConfig.tokenServerUrl;
+                    });
+                    Navigator.pop(ctx);
+                  },
+                  child: const Text(
+                    'Reset to Cloud (onrender.com)',
+                    style: TextStyle(color: AppTheme.accent),
+                  ),
+                ),
+              ),
             ],
           ),
         );
