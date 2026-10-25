@@ -134,7 +134,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     }
   }
 
-  void _handleIncomingData(String message, String sender) {
+  void _handleIncomingData(String message, String? sender) {
     try {
       final data = jsonDecode(message);
       if (data is! Map<String, dynamic>) return;
@@ -145,10 +145,10 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         _spawnEmojiBurst(emoji, isLocal: false);
       } else if (type == 'CHAT_MESSAGE') {
         final text = data['text'] as String? ?? '';
-        final from = data['sender'] as String? ?? sender;
+        final from = data['sender'] as String? ?? sender ?? partnerName;
         _addChatMessage(from, text, isMe: false);
       } else if (type == 'SNAPSHOT_TAKEN') {
-        final from = data['sender'] as String? ?? sender;
+        final from = data['sender'] as String? ?? sender ?? partnerName;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('📸 $from captured a keepsake moment with you! ❤️'),
