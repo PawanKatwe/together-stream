@@ -37,8 +37,6 @@ class VideoTile extends StatelessWidget {
           if (track != null)
             VideoTrackRenderer(
               track!,
-              fit: VideoViewFit.cover,
-              mirrorMode: isLocal ? VideoViewMirrorMode.mirror : VideoViewMirrorMode.off,
             )
           else
             Container(

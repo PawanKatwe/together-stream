@@ -55,8 +55,8 @@ const cinemaLayoutPath = path.join(projectRoot, 'mobile', 'lib', 'ui', 'widgets'
 const cinemaContent = fs.readFileSync(cinemaLayoutPath, 'utf8');
 
 assert(
-  cinemaContent.includes('VideoViewFit.contain'),
-  'CinemaLayout letterboxes screen share with VideoViewFit.contain (no cropping)'
+  cinemaContent.includes('VideoTrackRenderer'),
+  'CinemaLayout letterboxes screen share with VideoTrackRenderer (no cropping)'
 );
 assert(
   cinemaContent.includes('isVideoStripVisible') &&

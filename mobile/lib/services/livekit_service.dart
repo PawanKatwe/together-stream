@@ -4,7 +4,7 @@ import 'package:livekit_client/livekit_client.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 enum ScreenQualityPreset {
-  p480('480p (Low Data)', 854, 480, 24, 800000, VideoParametersPresets.h480_169),
+  p480('480p (Low Data)', 854, 480, 24, 800000, VideoParametersPresets.h540_169),
   p720('720p (Recommended)', 1280, 720, 30, 2500000, VideoParametersPresets.h720_169),
   p1080('1080p (Crisp HD)', 1920, 1080, 30, 4500000, VideoParametersPresets.h1080_169);
 

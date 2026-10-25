@@ -46,7 +46,6 @@ class CinemaLayout extends StatelessWidget {
                 if (screenShareTrack != null)
                   VideoTrackRenderer(
                     screenShareTrack!,
-                    fit: VideoViewFit.contain,
                   )
                 else
                   Center(
