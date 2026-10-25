@@ -118,7 +118,7 @@ class _SetupScreenState extends State<SetupScreen> {
                   },
                   child: const Text(
                     'Reset to Cloud (onrender.com)',
-                    style: TextStyle(color: AppTheme.accent),
+                    style: TextStyle(color: AppTheme.primaryRose),
                   ),
                 ),
               ),

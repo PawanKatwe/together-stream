@@ -9,6 +9,7 @@ class AppTheme {
   static const Color primaryRose = Color(0xFFE2849C);
   static const Color primaryRoseLight = Color(0xFFF7A8BE);
   static const Color roseDark = Color(0xFF83324C);
+  static const Color accent = primaryRose;
   
   static const Color lavenderAccent = Color(0xFFC4B5FD);
   static const Color textPrimary = Color(0xFFF9FAFB);
