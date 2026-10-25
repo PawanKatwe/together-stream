@@ -22,7 +22,7 @@ class MainActivity: FlutterActivity() {
             when (call.method) {
                 "checkOverlayPermission" -> {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                        result.success(Settings.canDrawOverlays(this))
+                        result.success(Settings.canDrawOverlays(applicationContext))
                     } else {
                         result.success(true)
                     }
@@ -43,11 +43,11 @@ class MainActivity: FlutterActivity() {
                 }
                 "showOverlay" -> {
                     val partnerName = call.argument<String>("partnerName") ?: "Partner"
-                    FloatingOverlayService.start(this, partnerName)
+                    FloatingOverlayService.start(applicationContext, partnerName)
                     result.success(true)
                 }
                 "hideOverlay" -> {
-                    FloatingOverlayService.stop(this)
+                    FloatingOverlayService.stop(applicationContext)
                     result.success(true)
                 }
                 else -> {
@@ -70,7 +70,7 @@ class MainActivity: FlutterActivity() {
             }
 
             val notificationManager: NotificationManager =
-                getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             notificationManager.createNotificationChannel(channel)
         }
     }
