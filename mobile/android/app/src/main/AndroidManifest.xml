@@ -21,6 +21,10 @@
     <!-- Floating Draggable Bubble Overlay -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
+    <!-- Video Media & Storage Access for In-App Cinema -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+
     <application
         android:label="TogetherStream"
         android:name="${applicationName}"

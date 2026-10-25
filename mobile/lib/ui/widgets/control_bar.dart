@@ -6,13 +6,15 @@ class ControlBar extends StatelessWidget {
   final bool isMicMuted;
   final bool isCameraMuted;
   final bool isScreenSharing;
-  final bool isAnyScreenShareActive;
+  final bool isAnyMediaOrScreenActive;
   final bool isVideoStripVisible;
   final bool isFullscreen;
   final ScreenQualityPreset currentPreset;
   final VoidCallback onToggleMic;
   final VoidCallback onToggleCamera;
   final VoidCallback onSwitchCamera;
+  final VoidCallback onPickLocalMovie;
+  final VoidCallback onOpenYouTube;
   final VoidCallback onToggleScreenShare;
   final VoidCallback onToggleVideoStrip;
   final VoidCallback onToggleFullscreen;
@@ -24,13 +26,15 @@ class ControlBar extends StatelessWidget {
     required this.isMicMuted,
     required this.isCameraMuted,
     required this.isScreenSharing,
-    required this.isAnyScreenShareActive,
+    required this.isAnyMediaOrScreenActive,
     required this.isVideoStripVisible,
     required this.isFullscreen,
     required this.currentPreset,
     required this.onToggleMic,
     required this.onToggleCamera,
     required this.onSwitchCamera,
+    required this.onPickLocalMovie,
+    required this.onOpenYouTube,
     required this.onToggleScreenShare,
     required this.onToggleVideoStrip,
     required this.onToggleFullscreen,
@@ -60,7 +64,27 @@ class ControlBar extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Microphone Toggle
+          // 1. Pick Local Movie File (MP4, MKV)
+          _ControlButton(
+            icon: Icons.movie_creation_rounded,
+            isActive: true,
+            activeColor: AppTheme.primaryRose,
+            tooltip: 'Pick Movie from Storage (MP4/MKV)',
+            onTap: onPickLocalMovie,
+          ),
+          const SizedBox(width: 8),
+
+          // 2. Watch YouTube Video Together
+          _ControlButton(
+            icon: Icons.play_circle_fill_rounded,
+            isActive: true,
+            activeColor: Colors.redAccent,
+            tooltip: 'Paste YouTube Link to Watch Together',
+            onTap: onOpenYouTube,
+          ),
+          const SizedBox(width: 8),
+
+          // 3. Microphone Toggle
           _ControlButton(
             icon: isMicMuted ? Icons.mic_off : Icons.mic,
             isActive: !isMicMuted,
@@ -71,7 +95,7 @@ class ControlBar extends StatelessWidget {
           ),
           const SizedBox(width: 8),
 
-          // Camera Toggle
+          // 4. Camera Toggle
           _ControlButton(
             icon: isCameraMuted ? Icons.videocam_off : Icons.videocam,
             isActive: !isCameraMuted,
@@ -82,7 +106,7 @@ class ControlBar extends StatelessWidget {
           ),
           const SizedBox(width: 8),
 
-          // Switch Front / Back Camera
+          // 5. Flip Camera (Front / Back)
           _ControlButton(
             icon: Icons.flip_camera_android,
             isActive: true,
@@ -92,19 +116,8 @@ class ControlBar extends StatelessWidget {
           ),
           const SizedBox(width: 8),
 
-          // Screen Share Toggle (Movie & Sound)
-          _ControlButton(
-            icon: isScreenSharing ? Icons.stop_screen_share : Icons.screen_share,
-            isActive: isScreenSharing,
-            activeColor: AppTheme.primaryRoseLight,
-            inactiveColor: Colors.white70,
-            tooltip: isScreenSharing ? 'Stop Screen Sharing' : 'Share Screen & Movie Sound',
-            onTap: onToggleScreenShare,
-          ),
-          const SizedBox(width: 8),
-
-          // Hide / Show Video Strip (Only visible in Screen Share mode)
-          if (isAnyScreenShareActive) ...[
+          // 6. Hide / Show Video Strip (Visible when movie is playing or screen is shared)
+          if (isAnyMediaOrScreenActive) ...[
             _ControlButton(
               icon: isVideoStripVisible ? Icons.visibility : Icons.visibility_off,
               isActive: isVideoStripVisible,
@@ -116,7 +129,7 @@ class ControlBar extends StatelessWidget {
             const SizedBox(width: 8),
           ],
 
-          // Immersive Fullscreen Toggle
+          // 7. Fullscreen Toggle
           _ControlButton(
             icon: isFullscreen ? Icons.fullscreen_exit : Icons.fullscreen,
             isActive: isFullscreen,
@@ -125,38 +138,9 @@ class ControlBar extends StatelessWidget {
             tooltip: isFullscreen ? 'Exit Fullscreen' : 'Cinema Fullscreen',
             onTap: onToggleFullscreen,
           ),
-          const SizedBox(width: 8),
-
-          // Quality Selector
-          Tooltip(
-            message: 'Stream Quality (${currentPreset.label})',
-            child: InkWell(
-              onTap: onOpenQualitySheet,
-              borderRadius: BorderRadius.circular(20),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
-                decoration: BoxDecoration(
-                  color: AppTheme.surfaceLight,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: AppTheme.primaryRose.withOpacity(0.3),
-                    width: 1,
-                  ),
-                ),
-                child: Text(
-                  currentPreset.label.split(' ').first,
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    color: AppTheme.primaryRoseLight,
-                  ),
-                ),
-              ),
-            ),
-          ),
           const SizedBox(width: 12),
 
-          // End Call Button
+          // 8. End Call Button
           InkWell(
             onTap: onLeaveCall,
             borderRadius: BorderRadius.circular(24),

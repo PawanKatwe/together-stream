@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_background/flutter_background.dart';
@@ -219,7 +220,29 @@ class LiveKitService extends ChangeNotifier {
       })
       ..on<LocalTrackUnpublishedEvent>((_) {
         notifyListeners();
+      })
+      ..on<DataReceivedEvent>((event) {
+        try {
+          final message = utf8.decode(event.data);
+          onDataReceived?.call(message, event.participant?.identity);
+        } catch (e) {
+          debugPrint('Error decoding received data message: $e');
+        }
       });
+  }
+
+  // Data Channel Messaging for Synced Cinema & Couple Features
+  void Function(String message, String? senderIdentity)? onDataReceived;
+
+  Future<void> sendDataMessage(String message) async {
+    final participant = _room?.localParticipant;
+    if (participant == null) return;
+    try {
+      final bytes = utf8.encode(message);
+      await participant.publishData(bytes, reliable: true);
+    } catch (e) {
+      debugPrint('Error sending LiveKit data message: $e');
+    }
   }
 
   // Toggle Microphone

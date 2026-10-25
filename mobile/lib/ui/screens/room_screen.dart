@@ -4,13 +4,16 @@ import 'package:flutter/services.dart';
 import '../../core/config.dart';
 import '../../core/theme.dart';
 import '../../services/livekit_service.dart';
+import '../../services/media_sync_service.dart';
 import '../../services/overlay_service.dart';
 import '../../services/token_service.dart';
 import '../widgets/cinema_layout.dart';
 import '../widgets/control_bar.dart';
 import '../widgets/drm_notice_dialog.dart';
+import '../widgets/in_app_cinema_player.dart';
 import '../widgets/quality_selector_sheet.dart';
 import '../widgets/video_tile.dart';
+import '../widgets/youtube_input_dialog.dart';
 
 class RoomScreen extends StatefulWidget {
   final String myIdentity;
@@ -28,15 +31,17 @@ class RoomScreen extends StatefulWidget {
 
 class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   final LiveKitService _liveKitService = LiveKitService();
+  final MediaSyncService _mediaSyncService = MediaSyncService();
+
   Timer? _hideControlsTimer;
   bool _showControls = true;
   bool _isFetchingToken = true;
   String? _statusMessage;
 
-  // Phase 3 Features
+  // Cinema & Layout States
   bool _isVideoStripVisible = true;
   bool _isFullscreen = false;
-  bool _wasScreenSharing = false;
+  bool _wasCinemaActive = false;
 
   String get partnerName => AppConfig.getPartnerName(widget.myIdentity);
 
@@ -45,6 +50,17 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _liveKitService.addListener(_onLiveKitStateChanged);
+    _mediaSyncService.addListener(_onMediaSyncStateChanged);
+
+    // Hook LiveKit reliable data channel to MediaSyncService
+    _liveKitService.onDataReceived = (message, sender) {
+      _mediaSyncService.handleIncomingSyncMessage(
+        message,
+        widget.myIdentity,
+        sendDataFn: _liveKitService.sendDataMessage,
+      );
+    };
+
     _connectToRoom();
     _startHideControlsTimer();
   }
@@ -52,7 +68,6 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    // If the sharer leaves the app to play a movie, show the floating draggable bubble over other apps
     if (_liveKitService.isScreenSharing) {
       if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
         OverlayService.showFloatingBubble(partnerName);
@@ -62,32 +77,40 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     }
   }
 
-  void _onLiveKitStateChanged() {
-    final isScreenShareActive = _liveKitService.isAnyScreenShareActive;
+  void _onMediaSyncStateChanged() {
+    _checkOrientationAndLayout();
+    if (mounted) setState(() {});
+  }
 
-    // Handle landscape orientation lock in screen-share mode
-    if (isScreenShareActive && !_wasScreenSharing) {
-      _wasScreenSharing = true;
+  void _onLiveKitStateChanged() {
+    _checkOrientationAndLayout();
+    if (mounted) setState(() {});
+  }
+
+  void _checkOrientationAndLayout() {
+    final isCinemaActive = _mediaSyncService.hasMedia || _liveKitService.isAnyScreenShareActive;
+
+    // Handle landscape orientation lock in cinema mode
+    if (isCinemaActive && !_wasCinemaActive) {
+      _wasCinemaActive = true;
       SystemChrome.setPreferredOrientations([
         DeviceOrientation.landscapeLeft,
         DeviceOrientation.landscapeRight,
       ]);
-    } else if (!isScreenShareActive && _wasScreenSharing) {
-      _wasScreenSharing = false;
+    } else if (!isCinemaActive && _wasCinemaActive) {
+      _wasCinemaActive = false;
       SystemChrome.setPreferredOrientations([
         DeviceOrientation.portraitUp,
         DeviceOrientation.landscapeLeft,
         DeviceOrientation.landscapeRight,
       ]);
     }
-
-    if (mounted) setState(() {});
   }
 
   void _startHideControlsTimer() {
     _hideControlsTimer?.cancel();
-    _hideControlsTimer = Timer(const Duration(seconds: 3), () {
-      if (mounted && _showControls) {
+    _hideControlsTimer = Timer(const Duration(seconds: 4), () {
+      if (mounted && _showControls && (_mediaSyncService.isPlaying || _liveKitService.isScreenSharing)) {
         setState(() => _showControls = false);
       }
     });
@@ -142,7 +165,6 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
       await _liveKitService.stopScreenShare();
       await OverlayService.hideFloatingBubble();
     } else {
-      // Guide user about floating bubble overlay permission
       await OverlayService.promptOverlayPermission(context);
 
       if (!mounted) return;
@@ -189,7 +211,13 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
 
   Future<void> _leaveCall() async {
     await OverlayService.hideFloatingBubble();
+    await _mediaSyncService.closeMedia(
+      myIdentity: widget.myIdentity,
+      sendDataFn: _liveKitService.sendDataMessage,
+      broadcast: false,
+    );
     await _liveKitService.disconnect();
+
     // Restore orientation
     await SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
@@ -207,6 +235,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _hideControlsTimer?.cancel();
     OverlayService.hideFloatingBubble();
+    _mediaSyncService.removeListener(_onMediaSyncStateChanged);
+    _mediaSyncService.dispose();
     _liveKitService.removeListener(_onLiveKitStateChanged);
     _liveKitService.dispose();
     SystemChrome.setPreferredOrientations([
@@ -223,6 +253,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     final orientation = MediaQuery.of(context).orientation;
     final isLandscape = orientation == Orientation.landscape;
     final isScreenShareActive = _liveKitService.isAnyScreenShareActive;
+    final isCinemaActive = _mediaSyncService.hasMedia || isScreenShareActive;
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -231,14 +262,23 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         onTap: _toggleControls,
         child: Stack(
           children: [
-            // Video / Cinema Canvas Layout
+            // Video / In-App Cinema Layout
             SafeArea(
               top: !_isFullscreen,
               bottom: !_isFullscreen,
-              child: isScreenShareActive
+              child: isCinemaActive
                   ? CinemaLayout(
+                      mediaWidget: _mediaSyncService.hasMedia
+                          ? InAppCinemaPlayer(
+                              mediaService: _mediaSyncService,
+                              myIdentity: widget.myIdentity,
+                              sendDataFn: _liveKitService.sendDataMessage,
+                            )
+                          : null,
                       screenShareTrack: _liveKitService.activeScreenShareTrack,
-                      sharerName: _liveKitService.activeSharerName ?? 'Someone',
+                      sharerName: _mediaSyncService.hasMedia
+                          ? (_mediaSyncService.currentTitle ?? 'In-App Cinema')
+                          : (_liveKitService.activeSharerName ?? 'Someone'),
                       myVideoTrack: _liveKitService.localVideoTrack,
                       partnerVideoTrack: _liveKitService.remoteVideoTrack,
                       myName: widget.myIdentity,
@@ -297,7 +337,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                             const CircleAvatar(radius: 3, backgroundColor: AppTheme.success),
                             const SizedBox(width: 6),
                             Text(
-                              isScreenShareActive ? 'Cinema (80/20)' : 'Live',
+                              isCinemaActive ? 'Cinema Mode (80/20)' : 'Live Call',
                               style: const TextStyle(fontSize: 11, color: AppTheme.success, fontWeight: FontWeight.bold),
                             ),
                           ],
@@ -307,6 +347,65 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                 ),
               ),
             ),
+
+            // Partner Movie Invitation Banner (Visible when partner loaded a movie)
+            if (_mediaSyncService.pendingPartnerFileName != null && !_mediaSyncService.hasMedia)
+              Positioned(
+                top: 76,
+                left: 20,
+                right: 20,
+                child: InkWell(
+                  onTap: () {
+                    _mediaSyncService.pickLocalFile(
+                      myIdentity: widget.myIdentity,
+                      sendDataFn: _liveKitService.sendDataMessage,
+                    );
+                  },
+                  borderRadius: BorderRadius.circular(16),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: AppTheme.surface.withOpacity(0.95),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppTheme.primaryRose, width: 1.5),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppTheme.primaryRose.withOpacity(0.25),
+                          blurRadius: 16,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        const Text('🎬', style: TextStyle(fontSize: 20)),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                '$partnerName loaded: ${_mediaSyncService.pendingPartnerFileName}',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                ),
+                              ),
+                              const Text(
+                                'Tap here to select your copy & sync playback ❤️',
+                                style: TextStyle(color: AppTheme.primaryRoseLight, fontSize: 11),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Icon(Icons.arrow_forward_ios_rounded, color: AppTheme.primaryRose, size: 14),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
 
             // Error or Loading Banner
             if (_statusMessage != null || _isFetchingToken || _liveKitService.isConnecting)
@@ -361,13 +460,29 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                     isMicMuted: _liveKitService.isMicMuted,
                     isCameraMuted: _liveKitService.isCameraMuted,
                     isScreenSharing: _liveKitService.isScreenSharing,
-                    isAnyScreenShareActive: isScreenShareActive,
+                    isAnyMediaOrScreenActive: isCinemaActive,
                     isVideoStripVisible: _isVideoStripVisible,
                     isFullscreen: _isFullscreen,
                     currentPreset: _liveKitService.currentQuality,
                     onToggleMic: _liveKitService.toggleMicrophone,
                     onToggleCamera: _liveKitService.toggleCamera,
                     onSwitchCamera: _liveKitService.switchCamera,
+                    onPickLocalMovie: () {
+                      _mediaSyncService.pickLocalFile(
+                        myIdentity: widget.myIdentity,
+                        sendDataFn: _liveKitService.sendDataMessage,
+                      );
+                    },
+                    onOpenYouTube: () {
+                      YoutubeInputDialog.show(
+                        context,
+                        (url) => _mediaSyncService.loadYouTubeUrl(
+                          url,
+                          myIdentity: widget.myIdentity,
+                          sendDataFn: _liveKitService.sendDataMessage,
+                        ),
+                      );
+                    },
                     onToggleScreenShare: _handleScreenShareToggle,
                     onToggleVideoStrip: _toggleVideoStrip,
                     onToggleFullscreen: _toggleFullscreen,
@@ -383,7 +498,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     );
   }
 
-  // Layout 1: Call-Only Mode (No screen share)
+  // Layout 1: Call-Only Mode (Equal Split when no movie is playing)
   Widget _buildCallOnlyLayout(bool isLandscape) {
     final localTrack = _liveKitService.localVideoTrack;
     final remoteTrack = _liveKitService.remoteVideoTrack;

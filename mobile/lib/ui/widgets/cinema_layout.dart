@@ -4,6 +4,7 @@ import '../../core/theme.dart';
 import 'video_tile.dart';
 
 class CinemaLayout extends StatelessWidget {
+  final Widget? mediaWidget;
   final VideoTrack? screenShareTrack;
   final String sharerName;
   final VideoTrack? myVideoTrack;
@@ -18,7 +19,8 @@ class CinemaLayout extends StatelessWidget {
 
   const CinemaLayout({
     super.key,
-    required this.screenShareTrack,
+    this.mediaWidget,
+    this.screenShareTrack,
     required this.sharerName,
     required this.myVideoTrack,
     required this.partnerVideoTrack,
@@ -37,13 +39,16 @@ class CinemaLayout extends StatelessWidget {
       color: Colors.black,
       child: Column(
         children: [
-          // Top ~80% (or 100% if strip hidden): Shared Screen Canvas
+          // Top ~80% (or 100% if strip hidden): Shared Media Canvas
           Expanded(
             child: Stack(
               fit: StackFit.expand,
               children: [
-                // Shared Screen Stream (Letterboxed, No Cropping)
-                if (screenShareTrack != null)
+                // Priority 1: In-App Cinema Media Player (MP4/MKV/YouTube)
+                if (mediaWidget != null)
+                  mediaWidget!
+                // Priority 2: Screen Share Stream from Laptop/Partner
+                else if (screenShareTrack != null)
                   VideoTrackRenderer(
                     screenShareTrack!,
                   )
@@ -55,37 +60,12 @@ class CinemaLayout extends StatelessWidget {
                         const CircularProgressIndicator(color: AppTheme.primaryRose),
                         const SizedBox(height: 16),
                         Text(
-                          'Starting screen & audio stream from $sharerName...',
+                          'Starting media stream from $sharerName...',
                           style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13),
                         ),
                       ],
                     ),
                   ),
-
-                // Sharer Tag Badge (Top Left)
-                Positioned(
-                  top: 14,
-                  left: 14,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.7),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: AppTheme.primaryRose.withOpacity(0.35)),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.movie, size: 13, color: AppTheme.primaryRoseLight),
-                        const SizedBox(width: 6),
-                        Text(
-                          '$sharerName\'s Screen',
-                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.white),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
 
                 // Restore Video Strip Floating Pill (Visible when strip is hidden)
                 if (!isVideoStripVisible)
