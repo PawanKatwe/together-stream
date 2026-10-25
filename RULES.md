@@ -44,9 +44,12 @@
 ---
 
 ## 4. Phase Roadmap
-- **Phase 1 – Foundation:** Token server with passcode auth, Flutter app with identity setup (Pawan / Priya), 2-party video/mic call, toggles (cam/mic/flip), auto-reconnect.
-- **Phase 2 – Screen Share with Audio:** Android MediaProjection foreground service (complying with modern Android/Realme rules), system audio capture via AudioPlaybackCapture, quality presets (480p/720p/1080p), DRM notice.
-- **Phase 3 – Layout & Draggable Overlay:** 80/20 landscape cinema view, 3s auto-hiding controls, draggable floating camera bubble over external video players with edge-snapping.
-- **Phase 4 – Laptop Web Companion:** React + Vite web app for laptop Chrome tab-sharing with tab audio & acoustic echo guard.
-- **Phase 5 – Couple Features:** Synchronized floating emoji reactions, non-intrusive movie chat (10s auto-fade), next-visit countdown with celebration sparkles, double-camera Polaroid snapshot to gallery, "Thinking of you" heartbeat vibration, "BRB" banner.
-- **Phase 6 – Synced Local Video Playback:** Synchronized local file player with drift correction and "Paused by [Partner]" indicator.
+- **Phase 1 – Foundation:** Token server with passcode auth, Flutter app with identity setup (Pawan / Priya), 2-party video/mic call, toggles (cam/mic/flip), auto-reconnect. (COMPLETED)
+- **Phase 2 & 3 – In-App Dedicated Media Cinema:** 
+  - Top ~80% dedicated In-App Media Player replacing OS screen sharing.
+  - Hybrid Media Engine: Local video files (MP4, MKV) via device storage picker + YouTube streaming URL playback.
+  - Sub-100ms playback synchronization (Play, Pause, Seek/Scrub) via LiveKit Reliable Data Channel.
+  - Bottom ~20% reaction face strip with live camera feeds & mute indicators for Pawan & Priya.
+  - Auto-hiding controls (3 seconds).
+- **Phase 4 – Laptop Web Companion:** React + Vite web companion for laptop with matching media sync and camera calling. (COMPLETED)
+- **Phase 5 – Couple Features:** Synchronized floating emoji reactions (❤️, 😂, 💋), movie chat with 10s auto-fade, next-visit countdown with celebration sparkles, double-camera Polaroid snapshot to gallery, "Thinking of you" heartbeat vibration, "BRB" banner.
