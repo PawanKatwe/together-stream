@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: together-stream-server
+    env: node
+    plan: free
+    rootDir: server
+    buildCommand: npm install
+    startCommand: node index.js
+    envVars:
+      - key: PORT
+        value: 3000
+      - key: APP_PASSCODE
+        value: PP@160227
+      - key: ROOM_NAME
+        value: PP
+      - key: LIVEKIT_URL
+        sync: false
+      - key: LIVEKIT_API_KEY
+        sync: false
+      - key: LIVEKIT_API_SECRET
+        sync: false
