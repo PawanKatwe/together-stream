@@ -1,5 +1,8 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_background/flutter_background.dart';
+import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:livekit_client/livekit_client.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -276,8 +279,31 @@ class LiveKitService extends ChangeNotifier {
     }
 
     try {
-      // Ensure notification permission is granted on Android 13+
-      await Permission.notification.request();
+      if (Platform.isAndroid) {
+        // 1. Ensure notification permission is requested
+        await Permission.notification.request();
+
+        // 2. Request Android MediaProjection capture permission FIRST
+        // This prompts the system dialog "Start recording or casting with TogetherStream?"
+        final bool hasCapturePermission = await Helper.requestCapturePermission();
+        if (!hasCapturePermission) {
+          debugPrint('User cancelled Android screen capture permission');
+          return false;
+        }
+
+        // 3. Initialize and enable Android 14 compliant Foreground Service with mediaProjection
+        const androidConfig = FlutterBackgroundAndroidConfig(
+          notificationTitle: 'TogetherStream Cinema',
+          notificationText: 'Sharing screen and movie audio with your partner...',
+          notificationImportance: AndroidNotificationImportance.normal,
+          notificationIcon: AndroidResource(name: 'ic_launcher', defType: 'drawable'),
+        );
+
+        final bool hasBgPermissions = await FlutterBackground.initialize(androidConfig: androidConfig);
+        if (hasBgPermissions && !FlutterBackground.isBackgroundExecutionEnabled) {
+          await FlutterBackground.enableBackgroundExecution();
+        }
+      }
 
       final captureOptions = ScreenShareCaptureOptions(
         captureScreenAudio: true, // Enables system audio capture for movie sound
@@ -295,6 +321,9 @@ class LiveKitService extends ChangeNotifier {
       return true;
     } catch (e) {
       debugPrint('Error starting screen share: $e');
+      if (Platform.isAndroid && FlutterBackground.isBackgroundExecutionEnabled) {
+        await FlutterBackground.disableBackgroundExecution();
+      }
       _isScreenSharing = false;
       notifyListeners();
       return false;
@@ -311,6 +340,9 @@ class LiveKitService extends ChangeNotifier {
     } catch (e) {
       debugPrint('Error stopping screen share: $e');
     } finally {
+      if (Platform.isAndroid && FlutterBackground.isBackgroundExecutionEnabled) {
+        await FlutterBackground.disableBackgroundExecution();
+      }
       _isScreenSharing = false;
       notifyListeners();
     }

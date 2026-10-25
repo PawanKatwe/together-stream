@@ -147,7 +147,13 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
 
       if (!mounted) return;
       DrmNoticeDialog.showIfEnabled(context, () async {
-        await _liveKitService.startScreenShare();
+        final bool started = await _liveKitService.startScreenShare();
+        if (started) {
+          final partner = widget.myIdentity == AppConfig.userPawan
+              ? AppConfig.userPriya
+              : AppConfig.userPawan;
+          await OverlayService.showFloatingBubble(partner);
+        }
       });
     }
   }

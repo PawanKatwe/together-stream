@@ -43,7 +43,9 @@ class MainActivity: FlutterActivity() {
                 }
                 "showOverlay" -> {
                     val partnerName = call.argument<String>("partnerName") ?: "Partner"
-                    FloatingOverlayService.start(this, partnerName)
+                    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(this)) {
+                        FloatingOverlayService.start(this, partnerName)
+                    }
                     result.success(true)
                 }
                 "hideOverlay" -> {

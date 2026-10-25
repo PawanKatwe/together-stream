@@ -14,7 +14,9 @@
     <!-- Screen Sharing & Foreground Service (Android 14+ Compliant) -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <!-- Floating Draggable Bubble Overlay -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
@@ -45,9 +47,10 @@
 
         <!-- Android 14+ Foreground Service for MediaProjection Screen Capture -->
         <service
-            android:name="com.cloudwebrtc.webrtc.FlutterRTCService"
-            android:foregroundServiceType="mediaProjection"
-            android:exported="false" />
+            android:name="de.julianassmann.flutter_background.IsolateHolderService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection|microphone" />
 
         <!-- Draggable Floating Bubble Overlay Service for Sharer -->
         <service
