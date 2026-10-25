@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../core/theme.dart';
+import '../../services/media_sync_service.dart';
 
 class YoutubeInputDialog extends StatefulWidget {
   final Future<void> Function(String url) onSubmit;
@@ -37,6 +38,12 @@ class _YoutubeInputDialogState extends State<YoutubeInputDialog> {
     final url = _controller.text.trim();
     if (url.isEmpty) {
       setState(() => _errorMessage = 'Please paste a valid YouTube link');
+      return;
+    }
+
+    final videoId = MediaSyncService.extractYouTubeId(url);
+    if (videoId == null) {
+      setState(() => _errorMessage = 'Could not find YouTube video ID. Check the link!');
       return;
     }
 

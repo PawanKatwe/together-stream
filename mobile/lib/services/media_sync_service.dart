@@ -16,6 +16,7 @@ class MediaSyncService extends ChangeNotifier {
   String? _currentTitle;
   String? _currentPathOrId;
   bool _isPlaying = false;
+  bool _isPortraitVideo = false;
   Duration _currentPosition = Duration.zero;
   Duration _totalDuration = Duration.zero;
   String? _lastActionNotice;
@@ -30,11 +31,32 @@ class MediaSyncService extends ChangeNotifier {
   String? get currentTitle => _currentTitle;
   String? get currentPathOrId => _currentPathOrId;
   bool get isPlaying => _isPlaying;
+  bool get isPortraitVideo => _isPortraitVideo;
   Duration get currentPosition => _currentPosition;
   Duration get totalDuration => _totalDuration;
   String? get lastActionNotice => _lastActionNotice;
   String? get pendingPartnerFileName => _pendingPartnerFileName;
   bool get hasMedia => _mediaType != MediaSourceType.none;
+
+  static String? extractYouTubeId(String rawUrl) {
+    final trimmed = rawUrl.trim();
+    if (trimmed.isEmpty) return null;
+
+    if (RegExp(r'^[a-zA-Z0-9_-]{11}$').hasMatch(trimmed)) {
+      return trimmed;
+    }
+
+    final shortsMatch = RegExp(r'youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})').firstMatch(trimmed);
+    if (shortsMatch != null) return shortsMatch.group(1);
+
+    final youtuBeMatch = RegExp(r'youtu\.be\/([a-zA-Z0-9_-]{11})').firstMatch(trimmed);
+    if (youtuBeMatch != null) return youtuBeMatch.group(1);
+
+    final standardMatch = RegExp(r'(?:v=|\/v\/|\/embed\/)([a-zA-Z0-9_-]{11})').firstMatch(trimmed);
+    if (standardMatch != null) return standardMatch.group(1);
+
+    return YoutubePlayer.convertUrlToId(trimmed);
+  }
 
   // 1. Pick and Load Local Video File (MP4, MKV, MOV, WebM)
   Future<bool> pickLocalFile({
@@ -87,6 +109,8 @@ class MediaSyncService extends ChangeNotifier {
     _currentPathOrId = file.path;
     _totalDuration = _videoPlayerController!.value.duration;
     _isPlaying = false;
+    final aspect = _videoPlayerController!.value.aspectRatio;
+    _isPortraitVideo = aspect > 0 && aspect < 1.0;
 
     _videoPlayerController!.addListener(_onLocalPlayerUpdate);
     notifyListeners();
@@ -109,19 +133,21 @@ class MediaSyncService extends ChangeNotifier {
     bool broadcast = true,
   }) async {
     try {
-      final videoId = YoutubePlayer.convertUrlToId(url.trim());
+      final videoId = extractYouTubeId(url);
       if (videoId == null) {
         _showNotice('Invalid YouTube URL');
         return false;
       }
 
-      await _initYouTubePlayer(videoId, 'YouTube: $videoId');
+      final isShort = url.contains('/shorts/');
+      await _initYouTubePlayer(videoId, 'YouTube: $videoId', isShort: isShort);
 
       if (broadcast) {
         await sendDataFn(jsonEncode({
           'type': 'MEDIA_SYNC',
           'action': 'LOAD_YOUTUBE',
           'videoId': videoId,
+          'isShort': isShort,
           'title': 'YouTube Video',
           'sender': myIdentity,
           'timestamp': DateTime.now().millisecondsSinceEpoch,
@@ -138,23 +164,26 @@ class MediaSyncService extends ChangeNotifier {
   }
 
   // Initialize YouTube Player
-  Future<void> _initYouTubePlayer(String videoId, String title) async {
+  Future<void> _initYouTubePlayer(String videoId, String title, {bool isShort = false}) async {
     await _disposePlayers();
 
     _youtubePlayerController = YoutubePlayerController(
       initialVideoId: videoId,
       flags: const YoutubePlayerFlags(
-        autoPlay: false,
+        autoPlay: true,
         mute: false,
-        enableCaption: true,
+        enableCaption: false,
         useHybridComposition: true,
+        controlsVisibleAtStart: false,
+        forceHD: true,
       ),
     );
 
     _mediaType = MediaSourceType.youtube;
     _currentTitle = title;
     _currentPathOrId = videoId;
-    _isPlaying = false;
+    _isPlaying = true;
+    _isPortraitVideo = isShort;
 
     _youtubePlayerController!.addListener(_onYouTubePlayerUpdate);
     notifyListeners();
@@ -315,9 +344,10 @@ class MediaSyncService extends ChangeNotifier {
 
         case 'LOAD_YOUTUBE':
           final videoId = data['videoId'] as String?;
+          final isShort = data['isShort'] as bool? ?? false;
           if (videoId != null && videoId.isNotEmpty) {
             _pendingPartnerFileName = null;
-            await _initYouTubePlayer(videoId, 'YouTube: $videoId');
+            await _initYouTubePlayer(videoId, 'YouTube: $videoId', isShort: isShort);
             _showNotice('$sender loaded YouTube video ❤️');
           }
           break;

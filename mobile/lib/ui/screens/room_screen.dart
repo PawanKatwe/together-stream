@@ -14,6 +14,7 @@ import '../widgets/in_app_cinema_player.dart';
 import '../widgets/quality_selector_sheet.dart';
 import '../widgets/video_tile.dart';
 import '../widgets/youtube_input_dialog.dart';
+import 'setup_screen.dart';
 
 class RoomScreen extends StatefulWidget {
   final String myIdentity;
@@ -34,6 +35,8 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   final MediaSyncService _mediaSyncService = MediaSyncService();
 
   Timer? _hideControlsTimer;
+  Timer? _callDurationTimer;
+  Duration _callDuration = Duration.zero;
   bool _showControls = true;
   bool _isFetchingToken = true;
   String? _statusMessage;
@@ -63,6 +66,15 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
 
     _connectToRoom();
     _startHideControlsTimer();
+
+    // Call / movie date duration timer
+    _callDurationTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted && _liveKitService.isConnected) {
+        setState(() {
+          _callDuration += const Duration(seconds: 1);
+        });
+      }
+    });
   }
 
   @override
@@ -87,16 +99,47 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     if (mounted) setState(() {});
   }
 
-  void _checkOrientationAndLayout() {
-    final isCinemaActive = _mediaSyncService.hasMedia || _liveKitService.isAnyScreenShareActive;
+  String _formatCallDuration(Duration d) {
+    String twoDigits(int n) => n.toString().padLeft(2, '0');
+    final hours = d.inHours;
+    final minutes = d.inMinutes.remainder(60);
+    final seconds = d.inSeconds.remainder(60);
+    if (hours > 0) {
+      return '$hours:${twoDigits(minutes)}:${twoDigits(seconds)}';
+    }
+    return '${twoDigits(minutes)}:${twoDigits(seconds)}';
+  }
 
-    // Handle landscape orientation lock in cinema mode
-    if (isCinemaActive && !_wasCinemaActive) {
-      _wasCinemaActive = true;
+  void _toggleOrientation() {
+    final orientation = MediaQuery.of(context).orientation;
+    if (orientation == Orientation.landscape) {
+      SystemChrome.setPreferredOrientations([
+        DeviceOrientation.portraitUp,
+      ]);
+    } else {
       SystemChrome.setPreferredOrientations([
         DeviceOrientation.landscapeLeft,
         DeviceOrientation.landscapeRight,
       ]);
+    }
+  }
+
+  void _checkOrientationAndLayout() {
+    final isCinemaActive = _mediaSyncService.hasMedia || _liveKitService.isAnyScreenShareActive;
+
+    // Handle orientation in cinema mode
+    if (isCinemaActive && !_wasCinemaActive) {
+      _wasCinemaActive = true;
+      if (_mediaSyncService.isPortraitVideo) {
+        SystemChrome.setPreferredOrientations([
+          DeviceOrientation.portraitUp,
+        ]);
+      } else {
+        SystemChrome.setPreferredOrientations([
+          DeviceOrientation.landscapeLeft,
+          DeviceOrientation.landscapeRight,
+        ]);
+      }
     } else if (!isCinemaActive && _wasCinemaActive) {
       _wasCinemaActive = false;
       SystemChrome.setPreferredOrientations([
@@ -210,6 +253,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _leaveCall() async {
+    _callDurationTimer?.cancel();
     await OverlayService.hideFloatingBubble();
     await _mediaSyncService.closeMedia(
       myIdentity: widget.myIdentity,
@@ -226,7 +270,10 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     ]);
     await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     if (mounted) {
-      Navigator.of(context).pop();
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const SetupScreen()),
+        (route) => false,
+      );
     }
   }
 
@@ -234,6 +281,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _hideControlsTimer?.cancel();
+    _callDurationTimer?.cancel();
     OverlayService.hideFloatingBubble();
     _mediaSyncService.removeListener(_onMediaSyncStateChanged);
     _mediaSyncService.dispose();
@@ -273,6 +321,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                               mediaService: _mediaSyncService,
                               myIdentity: widget.myIdentity,
                               sendDataFn: _liveKitService.sendDataMessage,
+                              onToggleOrientation: _toggleOrientation,
                             )
                           : null,
                       screenShareTrack: _liveKitService.activeScreenShareTrack,
@@ -325,23 +374,52 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                       ),
                     ),
                     if (_liveKitService.isConnected)
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: AppTheme.success.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppTheme.success.withOpacity(0.5)),
-                        ),
-                        child: Row(
-                          children: [
-                            const CircleAvatar(radius: 3, backgroundColor: AppTheme.success),
-                            const SizedBox(width: 6),
-                            Text(
-                              isCinemaActive ? 'Cinema Mode (80/20)' : 'Live Call',
-                              style: const TextStyle(fontSize: 11, color: AppTheme.success, fontWeight: FontWeight.bold),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: AppTheme.surface.withOpacity(0.85),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: AppTheme.primaryRose.withOpacity(0.35)),
                             ),
-                          ],
-                        ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Text('⏱️', style: TextStyle(fontSize: 12)),
+                                const SizedBox(width: 5),
+                                Text(
+                                  _formatCallDuration(_callDuration),
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: AppTheme.success.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: AppTheme.success.withOpacity(0.5)),
+                            ),
+                            child: Row(
+                              children: [
+                                const CircleAvatar(radius: 3, backgroundColor: AppTheme.success),
+                                const SizedBox(width: 6),
+                                Text(
+                                  isCinemaActive ? 'Cinema' : 'Live Call',
+                                  style: const TextStyle(fontSize: 11, color: AppTheme.success, fontWeight: FontWeight.bold),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                   ],
                 ),

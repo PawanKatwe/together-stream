@@ -9,12 +9,14 @@ class InAppCinemaPlayer extends StatefulWidget {
   final MediaSyncService mediaService;
   final String myIdentity;
   final Future<void> Function(String) sendDataFn;
+  final VoidCallback? onToggleOrientation;
 
   const InAppCinemaPlayer({
     super.key,
     required this.mediaService,
     required this.myIdentity,
     required this.sendDataFn,
+    this.onToggleOrientation,
   });
 
   @override
@@ -24,6 +26,7 @@ class InAppCinemaPlayer extends StatefulWidget {
 class _InAppCinemaPlayerState extends State<InAppCinemaPlayer> {
   bool _showControls = true;
   Timer? _hideTimer;
+  BoxFit _fitMode = BoxFit.contain;
 
   @override
   void initState() {
@@ -47,6 +50,19 @@ class _InAppCinemaPlayerState extends State<InAppCinemaPlayer> {
     if (_showControls) {
       _startHideTimer();
     }
+  }
+
+  void _toggleFitMode() {
+    setState(() {
+      _fitMode = _fitMode == BoxFit.contain ? BoxFit.fitWidth : BoxFit.contain;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(_fitMode == BoxFit.contain ? 'Aspect Ratio: Fit to Screen' : 'Aspect Ratio: Fill Width'),
+        duration: const Duration(seconds: 1),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   String _formatDuration(Duration duration) {
@@ -80,7 +96,7 @@ class _InAppCinemaPlayerState extends State<InAppCinemaPlayer> {
         child: Stack(
           alignment: Alignment.center,
           children: [
-            // 1. Media View (Local File or YouTube)
+            // 1. Media View (Local File or YouTube) with strictly preserved aspect ratio
             Center(
               child: _buildMediaSurface(service),
             ),
@@ -139,7 +155,7 @@ class _InAppCinemaPlayerState extends State<InAppCinemaPlayer> {
                         const Text('🎬', style: TextStyle(fontSize: 14)),
                         const SizedBox(width: 8),
                         ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 240),
+                          constraints: const BoxConstraints(maxWidth: 180),
                           child: Text(
                             service.currentTitle ?? 'In-App Cinema',
                             overflow: TextOverflow.ellipsis,
@@ -154,6 +170,39 @@ class _InAppCinemaPlayerState extends State<InAppCinemaPlayer> {
                     ),
                   ),
                   const Spacer(),
+                  // Fit Mode Button (Contain vs Fill Width)
+                  IconButton(
+                    onPressed: _toggleFitMode,
+                    tooltip: 'Aspect Ratio / Fit',
+                    icon: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.75),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: AppTheme.primaryRose.withOpacity(0.5)),
+                      ),
+                      child: Icon(
+                        _fitMode == BoxFit.contain ? Icons.aspect_ratio_rounded : Icons.fit_screen_rounded,
+                        color: Colors.white,
+                        size: 18,
+                      ),
+                    ),
+                  ),
+                  // Orientation Toggle Button (Portrait / Landscape)
+                  if (widget.onToggleOrientation != null)
+                    IconButton(
+                      onPressed: widget.onToggleOrientation,
+                      tooltip: 'Rotate Screen (Portrait / Landscape)',
+                      icon: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.75),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: AppTheme.primaryRose.withOpacity(0.5)),
+                        ),
+                        child: const Icon(Icons.screen_rotation_rounded, color: Colors.white, size: 18),
+                      ),
+                    ),
                   // Close Cinema Button
                   IconButton(
                     onPressed: () {
@@ -276,9 +325,19 @@ class _InAppCinemaPlayerState extends State<InAppCinemaPlayer> {
     if (service.mediaType == MediaSourceType.localFile) {
       final controller = service.videoPlayerController;
       if (controller != null && controller.value.isInitialized) {
-        return AspectRatio(
-          aspectRatio: controller.value.aspectRatio,
-          child: VideoPlayer(controller),
+        final size = controller.value.size;
+        final aspect = controller.value.aspectRatio;
+        return FittedBox(
+          fit: _fitMode,
+          alignment: Alignment.center,
+          child: SizedBox(
+            width: size.width > 0 ? size.width : 1600,
+            height: size.height > 0 ? size.height : 900,
+            child: AspectRatio(
+              aspectRatio: aspect > 0 ? aspect : 16 / 9,
+              child: VideoPlayer(controller),
+            ),
+          ),
         );
       } else {
         return const Center(
@@ -288,10 +347,22 @@ class _InAppCinemaPlayerState extends State<InAppCinemaPlayer> {
     } else if (service.mediaType == MediaSourceType.youtube) {
       final controller = service.youtubePlayerController;
       if (controller != null) {
-        return YoutubePlayer(
-          controller: controller,
-          showVideoProgressIndicator: false,
-          progressIndicatorColor: AppTheme.primaryRose,
+        return FittedBox(
+          fit: _fitMode,
+          alignment: Alignment.center,
+          child: SizedBox(
+            width: service.isPortraitVideo ? 1080 : 1920,
+            height: service.isPortraitVideo ? 1920 : 1080,
+            child: YoutubePlayer(
+              controller: controller,
+              showVideoProgressIndicator: true,
+              progressIndicatorColor: AppTheme.primaryRose,
+              onReady: () {
+                debugPrint('YouTube player is ready - initiating playback');
+                controller.play();
+              },
+            ),
+          ),
         );
       }
     }

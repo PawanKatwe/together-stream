@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/config.dart';
 import '../../core/theme.dart';
+import '../../services/update_service.dart';
 import 'room_screen.dart';
 
 class SetupScreen extends StatefulWidget {
@@ -13,6 +14,32 @@ class SetupScreen extends StatefulWidget {
 
 class _SetupScreenState extends State<SetupScreen> {
   final TextEditingController _urlController = TextEditingController(text: AppConfig.tokenServerUrl);
+
+  @override
+  void initState() {
+    super.initState();
+    _initDefaultsAndCheckUpdates();
+  }
+
+  Future<void> _initDefaultsAndCheckUpdates() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString('token_server_url');
+    // If empty or pointing to obsolete localhost / trycloudflare test tunnel, auto-reset to 24/7 Render cloud
+    if (saved == null || saved.isEmpty || saved.contains('trycloudflare') || saved.contains('localhost')) {
+      _urlController.text = AppConfig.tokenServerUrl;
+      await prefs.setString('token_server_url', AppConfig.tokenServerUrl);
+    } else {
+      _urlController.text = saved;
+    }
+
+    // Check for updates
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final update = await UpdateService.checkForUpdate();
+      if (update != null && mounted) {
+        UpdateService.showUpdateDialog(context, update);
+      }
+    });
+  }
 
   Future<void> _selectIdentity(String identity) async {
     final prefs = await SharedPreferences.getInstance();
@@ -93,6 +120,31 @@ class _SetupScreenState extends State<SetupScreen> {
                     'Reset to Cloud (onrender.com)',
                     style: TextStyle(color: AppTheme.accent),
                   ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () async {
+                    Navigator.pop(ctx);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Checking for updates...')),
+                    );
+                    final update = await UpdateService.checkForUpdate();
+                    if (!mounted) return;
+                    if (update != null) {
+                      UpdateService.showUpdateDialog(context, update);
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('TogetherStream is up to date (v${UpdateService.currentVersion}) ❤️'),
+                        ),
+                      );
+                    }
+                  },
+                  icon: const Icon(Icons.sync_rounded, size: 16),
+                  label: const Text('Check for Updates'),
                 ),
               ),
             ],

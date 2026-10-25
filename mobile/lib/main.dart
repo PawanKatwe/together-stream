@@ -51,12 +51,7 @@ class TogetherStreamApp extends StatelessWidget {
       title: 'TogetherStream',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.darkTheme,
-      home: initialIdentity != null
-          ? RoomScreen(
-              myIdentity: initialIdentity!,
-              serverUrl: savedServerUrl,
-            )
-          : const SetupScreen(),
+      home: const SetupScreen(),
     );
   }
 }

@@ -35,11 +35,13 @@ class CinemaLayout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isPortrait = MediaQuery.of(context).orientation == Orientation.portrait;
+
     return Container(
       color: Colors.black,
       child: Column(
         children: [
-          // Top ~80% (or 100% if strip hidden): Shared Media Canvas
+          // Top Canvas: Shared Media Canvas (strictly contained, zero distortion)
           Expanded(
             child: Stack(
               fit: StackFit.expand,
@@ -100,11 +102,11 @@ class CinemaLayout extends StatelessWidget {
             ),
           ),
 
-          // Bottom ~20%: Thin Horizontal Video Strip (Both Faces)
+          // Bottom: Video Strip (Both Faces) with adaptive height
           AnimatedContainer(
             duration: const Duration(milliseconds: 280),
             curve: Curves.easeInOut,
-            height: isVideoStripVisible ? 120 : 0,
+            height: isVideoStripVisible ? (isPortrait ? 140.0 : 110.0) : 0,
             child: isVideoStripVisible
                 ? Container(
                     decoration: BoxDecoration(

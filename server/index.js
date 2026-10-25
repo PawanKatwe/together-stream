@@ -28,6 +28,26 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Universal APK Download redirect endpoint
+app.get('/download', async (req, res) => {
+  try {
+    const response = await fetch('https://api.github.com/repos/PawanKatwe/together-stream/releases/latest', {
+      headers: { 'User-Agent': 'TogetherStream-Server' }
+    });
+    if (response.ok) {
+      const data = await response.json();
+      const apkAsset = data.assets?.find(a => a.name.endsWith('.apk'));
+      if (apkAsset && apkAsset.browser_download_url) {
+        return res.redirect(apkAsset.browser_download_url);
+      }
+    }
+  } catch (err) {
+    console.error('Error fetching latest release:', err);
+  }
+  // Fallback to releases page
+  res.redirect('https://github.com/PawanKatwe/together-stream/releases/latest');
+});
+
 app.get('/', (req, res) => {
   res.json({
     message: 'TogetherStream private server running. POST /token to acquire an access token.'
