@@ -134,10 +134,10 @@ class _InAppCinemaPlayerState extends State<InAppCinemaPlayer> {
                 ),
               ),
 
-            // 3. Top Title Bar (Visible when controls shown)
+            // 3. Top Title Bar (Positioned safely below RoomScreen top bar to prevent any overlap)
             AnimatedPositioned(
               duration: const Duration(milliseconds: 250),
-              top: _showControls ? 16 : -60,
+              top: _showControls ? 64 : -70,
               left: 16,
               right: 16,
               child: Row(
@@ -188,21 +188,6 @@ class _InAppCinemaPlayerState extends State<InAppCinemaPlayer> {
                       ),
                     ),
                   ),
-                  // Orientation Toggle Button (Portrait / Landscape)
-                  if (widget.onToggleOrientation != null)
-                    IconButton(
-                      onPressed: widget.onToggleOrientation,
-                      tooltip: 'Rotate Screen (Portrait / Landscape)',
-                      icon: Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.75),
-                          shape: BoxShape.circle,
-                          border: Border.all(color: AppTheme.primaryRose.withOpacity(0.5)),
-                        ),
-                        child: const Icon(Icons.screen_rotation_rounded, color: Colors.white, size: 18),
-                      ),
-                    ),
                   // Close Cinema Button
                   IconButton(
                     onPressed: () {

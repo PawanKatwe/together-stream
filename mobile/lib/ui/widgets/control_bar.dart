@@ -19,6 +19,9 @@ class ControlBar extends StatelessWidget {
   final VoidCallback onToggleVideoStrip;
   final VoidCallback onToggleFullscreen;
   final VoidCallback onOpenQualitySheet;
+  final VoidCallback onToggleReactions;
+  final VoidCallback onOpenChat;
+  final VoidCallback onTakeSnapshot;
   final VoidCallback onLeaveCall;
 
   const ControlBar({
@@ -39,18 +42,21 @@ class ControlBar extends StatelessWidget {
     required this.onToggleVideoStrip,
     required this.onToggleFullscreen,
     required this.onOpenQualitySheet,
+    required this.onToggleReactions,
+    required this.onOpenChat,
+    required this.onTakeSnapshot,
     required this.onLeaveCall,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
       decoration: BoxDecoration(
         color: AppTheme.surface.withOpacity(0.92),
         borderRadius: BorderRadius.circular(36),
         border: Border.all(
-          color: AppTheme.primaryRose.withOpacity(0.2),
+          color: AppTheme.primaryRose.withOpacity(0.25),
           width: 1,
         ),
         boxShadow: [
@@ -61,103 +67,136 @@ class ControlBar extends StatelessWidget {
           ),
         ],
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // 1. Pick Local Movie File (MP4, MKV)
-          _ControlButton(
-            icon: Icons.movie_creation_rounded,
-            isActive: true,
-            activeColor: AppTheme.primaryRose,
-            tooltip: 'Pick Movie from Storage (MP4/MKV)',
-            onTap: onPickLocalMovie,
-          ),
-          const SizedBox(width: 8),
-
-          // 2. Watch YouTube Video Together
-          _ControlButton(
-            icon: Icons.play_circle_fill_rounded,
-            isActive: true,
-            activeColor: Colors.redAccent,
-            tooltip: 'Paste YouTube Link to Watch Together',
-            onTap: onOpenYouTube,
-          ),
-          const SizedBox(width: 8),
-
-          // 3. Microphone Toggle
-          _ControlButton(
-            icon: isMicMuted ? Icons.mic_off : Icons.mic,
-            isActive: !isMicMuted,
-            activeColor: AppTheme.primaryRose,
-            inactiveColor: AppTheme.danger,
-            tooltip: isMicMuted ? 'Unmute Mic' : 'Mute Mic',
-            onTap: onToggleMic,
-          ),
-          const SizedBox(width: 8),
-
-          // 4. Camera Toggle
-          _ControlButton(
-            icon: isCameraMuted ? Icons.videocam_off : Icons.videocam,
-            isActive: !isCameraMuted,
-            activeColor: AppTheme.primaryRose,
-            inactiveColor: AppTheme.danger,
-            tooltip: isCameraMuted ? 'Turn Camera On' : 'Turn Camera Off',
-            onTap: onToggleCamera,
-          ),
-          const SizedBox(width: 8),
-
-          // 5. Flip Camera (Front / Back)
-          _ControlButton(
-            icon: Icons.flip_camera_android,
-            isActive: true,
-            activeColor: AppTheme.lavenderAccent,
-            tooltip: 'Flip Camera',
-            onTap: onSwitchCamera,
-          ),
-          const SizedBox(width: 8),
-
-          // 6. Hide / Show Video Strip (Visible when movie is playing or screen is shared)
-          if (isAnyMediaOrScreenActive) ...[
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // 1. Pick Local Movie File (MP4, MKV)
             _ControlButton(
-              icon: isVideoStripVisible ? Icons.visibility : Icons.visibility_off,
-              isActive: isVideoStripVisible,
+              icon: Icons.movie_creation_rounded,
+              isActive: true,
               activeColor: AppTheme.primaryRose,
-              inactiveColor: AppTheme.textSecondary,
-              tooltip: isVideoStripVisible ? 'Hide Faces (Full Movie Height)' : 'Show Faces',
-              onTap: onToggleVideoStrip,
+              tooltip: 'Pick Movie from Storage (MP4/MKV)',
+              onTap: onPickLocalMovie,
             ),
             const SizedBox(width: 8),
-          ],
 
-          // 7. Fullscreen Toggle
-          _ControlButton(
-            icon: isFullscreen ? Icons.fullscreen_exit : Icons.fullscreen,
-            isActive: isFullscreen,
-            activeColor: AppTheme.primaryRose,
-            inactiveColor: Colors.white70,
-            tooltip: isFullscreen ? 'Exit Fullscreen' : 'Cinema Fullscreen',
-            onTap: onToggleFullscreen,
-          ),
-          const SizedBox(width: 12),
+            // 2. Watch YouTube Video Together
+            _ControlButton(
+              icon: Icons.play_circle_fill_rounded,
+              isActive: true,
+              activeColor: Colors.redAccent,
+              tooltip: 'Paste YouTube Link to Watch Together',
+              onTap: onOpenYouTube,
+            ),
+            const SizedBox(width: 8),
 
-          // 8. End Call Button
-          InkWell(
-            onTap: onLeaveCall,
-            borderRadius: BorderRadius.circular(24),
-            child: Container(
-              padding: const EdgeInsets.all(9),
-              decoration: const BoxDecoration(
-                color: AppTheme.danger,
-                shape: BoxShape.circle,
+            // 3. Floating Emoji Reaction Button ❤️
+            _ControlButton(
+              icon: Icons.favorite_rounded,
+              isActive: true,
+              activeColor: AppTheme.primaryRose,
+              tooltip: 'Send Reactions ❤️',
+              onTap: onToggleReactions,
+            ),
+            const SizedBox(width: 8),
+
+            // 4. In-Movie Chat / Whisper Button 💬
+            _ControlButton(
+              icon: Icons.chat_bubble_outline_rounded,
+              isActive: true,
+              activeColor: AppTheme.lavenderAccent,
+              tooltip: 'Whisper Message 💬',
+              onTap: onOpenChat,
+            ),
+            const SizedBox(width: 8),
+
+            // 5. Dual Polaroid Snapshot Button 📸
+            _ControlButton(
+              icon: Icons.camera_alt_rounded,
+              isActive: true,
+              activeColor: Colors.amberAccent,
+              tooltip: 'Take Memory Snapshot 📸',
+              onTap: onTakeSnapshot,
+            ),
+            const SizedBox(width: 8),
+
+            // 6. Microphone Toggle
+            _ControlButton(
+              icon: isMicMuted ? Icons.mic_off : Icons.mic,
+              isActive: !isMicMuted,
+              activeColor: AppTheme.primaryRose,
+              inactiveColor: AppTheme.danger,
+              tooltip: isMicMuted ? 'Unmute Mic' : 'Mute Mic',
+              onTap: onToggleMic,
+            ),
+            const SizedBox(width: 8),
+
+            // 7. Camera Toggle
+            _ControlButton(
+              icon: isCameraMuted ? Icons.videocam_off : Icons.videocam,
+              isActive: !isCameraMuted,
+              activeColor: AppTheme.primaryRose,
+              inactiveColor: AppTheme.danger,
+              tooltip: isCameraMuted ? 'Turn Camera On' : 'Turn Camera Off',
+              onTap: onToggleCamera,
+            ),
+            const SizedBox(width: 8),
+
+            // 8. Flip Camera (Front / Back)
+            _ControlButton(
+              icon: Icons.flip_camera_android,
+              isActive: true,
+              activeColor: AppTheme.lavenderAccent,
+              tooltip: 'Flip Camera',
+              onTap: onSwitchCamera,
+            ),
+            const SizedBox(width: 8),
+
+            // 9. Hide / Show Video Strip (Visible when movie is playing or screen is shared)
+            if (isAnyMediaOrScreenActive) ...[
+              _ControlButton(
+                icon: isVideoStripVisible ? Icons.visibility : Icons.visibility_off,
+                isActive: isVideoStripVisible,
+                activeColor: AppTheme.primaryRose,
+                inactiveColor: AppTheme.textSecondary,
+                tooltip: isVideoStripVisible ? 'Hide Faces (Full Movie Height)' : 'Show Faces',
+                onTap: onToggleVideoStrip,
               ),
-              child: const Icon(
-                Icons.call_end,
-                color: Colors.white,
-                size: 19,
+              const SizedBox(width: 8),
+            ],
+
+            // 10. Fullscreen Toggle
+            _ControlButton(
+              icon: isFullscreen ? Icons.fullscreen_exit : Icons.fullscreen,
+              isActive: isFullscreen,
+              activeColor: AppTheme.primaryRose,
+              inactiveColor: Colors.white70,
+              tooltip: isFullscreen ? 'Exit Fullscreen' : 'Cinema Fullscreen',
+              onTap: onToggleFullscreen,
+            ),
+            const SizedBox(width: 10),
+
+            // 11. End Call Button
+            InkWell(
+              onTap: onLeaveCall,
+              borderRadius: BorderRadius.circular(24),
+              child: Container(
+                padding: const EdgeInsets.all(9),
+                decoration: const BoxDecoration(
+                  color: AppTheme.danger,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.call_end,
+                  color: Colors.white,
+                  size: 19,
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

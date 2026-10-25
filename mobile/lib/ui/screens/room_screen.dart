@@ -1,5 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:math';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import '../../core/config.dart';
 import '../../core/theme.dart';
@@ -10,8 +14,11 @@ import '../../services/token_service.dart';
 import '../widgets/cinema_layout.dart';
 import '../widgets/control_bar.dart';
 import '../widgets/drm_notice_dialog.dart';
+import '../widgets/floating_emoji_overlay.dart';
 import '../widgets/in_app_cinema_player.dart';
+import '../widgets/in_movie_chat_overlay.dart';
 import '../widgets/quality_selector_sheet.dart';
+import '../widgets/snapshot_modal.dart';
 import '../widgets/video_tile.dart';
 import '../widgets/youtube_input_dialog.dart';
 import 'setup_screen.dart';
@@ -46,6 +53,13 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   bool _isFullscreen = false;
   bool _wasCinemaActive = false;
 
+  // Romantic Couple Features
+  final GlobalKey _screenshotKey = GlobalKey();
+  final List<FloatingEmojiData> _floatingEmojis = [];
+  final List<InMovieChatMessage> _chatMessages = [];
+  bool _showReactionPicker = false;
+  bool _isShutterFlashing = false;
+
   String get partnerName => AppConfig.getPartnerName(widget.myIdentity);
 
   @override
@@ -55,13 +69,9 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     _liveKitService.addListener(_onLiveKitStateChanged);
     _mediaSyncService.addListener(_onMediaSyncStateChanged);
 
-    // Hook LiveKit reliable data channel to MediaSyncService
+    // Hook LiveKit reliable data channel to MediaSyncService & Couple Features
     _liveKitService.onDataReceived = (message, sender) {
-      _mediaSyncService.handleIncomingSyncMessage(
-        message,
-        widget.myIdentity,
-        sendDataFn: _liveKitService.sendDataMessage,
-      );
+      _handleIncomingData(message, sender);
     };
 
     _connectToRoom();
@@ -121,6 +131,160 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         DeviceOrientation.landscapeLeft,
         DeviceOrientation.landscapeRight,
       ]);
+    }
+  }
+
+  void _handleIncomingData(String message, String sender) {
+    try {
+      final data = jsonDecode(message);
+      if (data is! Map<String, dynamic>) return;
+
+      final type = data['type'] as String?;
+      if (type == 'EMOJI_REACTION') {
+        final emoji = data['emoji'] as String? ?? '❤️';
+        _spawnEmojiBurst(emoji, isLocal: false);
+      } else if (type == 'CHAT_MESSAGE') {
+        final text = data['text'] as String? ?? '';
+        final from = data['sender'] as String? ?? sender;
+        _addChatMessage(from, text, isMe: false);
+      } else if (type == 'SNAPSHOT_TAKEN') {
+        final from = data['sender'] as String? ?? sender;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('📸 $from captured a keepsake moment with you! ❤️'),
+            duration: const Duration(seconds: 3),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      } else {
+        // Forward media sync messages to MediaSyncService
+        _mediaSyncService.handleIncomingSyncMessage(
+          message,
+          widget.myIdentity,
+          sendDataFn: _liveKitService.sendDataMessage,
+        );
+      }
+    } catch (e) {
+      debugPrint('Error handling incoming data: $e');
+    }
+  }
+
+  void _sendEmojiReaction(String emoji) {
+    _spawnEmojiBurst(emoji, isLocal: true);
+    _liveKitService.sendDataMessage(jsonEncode({
+      'type': 'EMOJI_REACTION',
+      'emoji': emoji,
+      'sender': widget.myIdentity,
+      'timestamp': DateTime.now().millisecondsSinceEpoch,
+    }));
+  }
+
+  void _spawnEmojiBurst(String emoji, {bool isLocal = true}) {
+    HapticFeedback.lightImpact();
+    final random = Random();
+    final newItems = <FloatingEmojiData>[];
+
+    for (int i = 0; i < 4; i++) {
+      newItems.add(
+        FloatingEmojiData(
+          id: '${DateTime.now().microsecondsSinceEpoch}_$i',
+          emoji: emoji,
+          startX: (0.45 + (random.nextDouble() - 0.5) * 0.45).clamp(0.1, 0.85),
+          sway: (random.nextDouble() - 0.5) * 60,
+          scale: 0.85 + random.nextDouble() * 0.45,
+          createdAt: DateTime.now(),
+        ),
+      );
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _floatingEmojis.addAll(newItems);
+    });
+
+    Timer(const Duration(milliseconds: 2600), () {
+      if (mounted) {
+        setState(() {
+          _floatingEmojis.removeWhere((item) => newItems.contains(item));
+        });
+      }
+    });
+  }
+
+  void _openChatSheet() {
+    InMovieChatSheet.show(
+      context,
+      partnerName: partnerName,
+      onSendMessage: _sendChatMessage,
+    );
+  }
+
+  void _sendChatMessage(String text) {
+    _addChatMessage(widget.myIdentity, text, isMe: true);
+    _liveKitService.sendDataMessage(jsonEncode({
+      'type': 'CHAT_MESSAGE',
+      'text': text,
+      'sender': widget.myIdentity,
+      'timestamp': DateTime.now().millisecondsSinceEpoch,
+    }));
+  }
+
+  void _addChatMessage(String sender, String text, {required bool isMe}) {
+    if (!isMe) HapticFeedback.selectionClick();
+    final msg = InMovieChatMessage(
+      id: '${DateTime.now().microsecondsSinceEpoch}',
+      sender: sender,
+      text: text,
+      isMe: isMe,
+      timestamp: DateTime.now(),
+    );
+
+    if (!mounted) return;
+    setState(() {
+      _chatMessages.add(msg);
+    });
+
+    Timer(const Duration(seconds: 8), () {
+      if (mounted) {
+        setState(() {
+          _chatMessages.remove(msg);
+        });
+      }
+    });
+  }
+
+  Future<void> _takeSnapshot() async {
+    try {
+      HapticFeedback.mediumImpact();
+      // Shutter flash animation
+      setState(() => _isShutterFlashing = true);
+      Future.delayed(const Duration(milliseconds: 160), () {
+        if (mounted) setState(() => _isShutterFlashing = false);
+      });
+
+      final boundary = _screenshotKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
+      if (boundary == null) return;
+
+      final image = await boundary.toImage(pixelRatio: 2.0);
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null) return;
+
+      final bytes = byteData.buffer.asUint8List();
+      final now = DateTime.now();
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      final dateStr = '${months[(now.month - 1).clamp(0, 11)]} ${now.day}, ${now.year}';
+
+      await _liveKitService.sendDataMessage(jsonEncode({
+        'type': 'SNAPSHOT_TAKEN',
+        'sender': widget.myIdentity,
+        'timestamp': now.millisecondsSinceEpoch,
+      }));
+
+      if (mounted) {
+        SnapshotModal.show(context, imageBytes: bytes, dateText: dateStr);
+      }
+    } catch (e) {
+      debugPrint('Snapshot capture error: $e');
     }
   }
 
@@ -310,35 +474,38 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         onTap: _toggleControls,
         child: Stack(
           children: [
-            // Video / In-App Cinema Layout
-            SafeArea(
-              top: !_isFullscreen,
-              bottom: !_isFullscreen,
-              child: isCinemaActive
-                  ? CinemaLayout(
-                      mediaWidget: _mediaSyncService.hasMedia
-                          ? InAppCinemaPlayer(
-                              mediaService: _mediaSyncService,
-                              myIdentity: widget.myIdentity,
-                              sendDataFn: _liveKitService.sendDataMessage,
-                              onToggleOrientation: _toggleOrientation,
-                            )
-                          : null,
-                      screenShareTrack: _liveKitService.activeScreenShareTrack,
-                      sharerName: _mediaSyncService.hasMedia
-                          ? (_mediaSyncService.currentTitle ?? 'In-App Cinema')
-                          : (_liveKitService.activeSharerName ?? 'Someone'),
-                      myVideoTrack: _liveKitService.localVideoTrack,
-                      partnerVideoTrack: _liveKitService.remoteVideoTrack,
-                      myName: widget.myIdentity,
-                      partnerName: partnerName,
-                      isMyMicMuted: _liveKitService.isMicMuted,
-                      isPartnerMicMuted: _liveKitService.remoteParticipant?.audioTrackPublications.firstOrNull?.muted ?? false,
-                      isMyCameraMuted: _liveKitService.isCameraMuted,
-                      isVideoStripVisible: _isVideoStripVisible,
-                      onToggleVideoStrip: _toggleVideoStrip,
-                    )
-                  : _buildCallOnlyLayout(isLandscape),
+            // Video / In-App Cinema Layout (Wrapped in RepaintBoundary for snapshot keepsake)
+            RepaintBoundary(
+              key: _screenshotKey,
+              child: SafeArea(
+                top: !_isFullscreen,
+                bottom: !_isFullscreen,
+                child: isCinemaActive
+                    ? CinemaLayout(
+                        mediaWidget: _mediaSyncService.hasMedia
+                            ? InAppCinemaPlayer(
+                                mediaService: _mediaSyncService,
+                                myIdentity: widget.myIdentity,
+                                sendDataFn: _liveKitService.sendDataMessage,
+                                onToggleOrientation: _toggleOrientation,
+                              )
+                            : null,
+                        screenShareTrack: _liveKitService.activeScreenShareTrack,
+                        sharerName: _mediaSyncService.hasMedia
+                            ? (_mediaSyncService.currentTitle ?? 'In-App Cinema')
+                            : (_liveKitService.activeSharerName ?? 'Someone'),
+                        myVideoTrack: _liveKitService.localVideoTrack,
+                        partnerVideoTrack: _liveKitService.remoteVideoTrack,
+                        myName: widget.myIdentity,
+                        partnerName: partnerName,
+                        isMyMicMuted: _liveKitService.isMicMuted,
+                        isPartnerMicMuted: _liveKitService.remoteParticipant?.audioTrackPublications.firstOrNull?.muted ?? false,
+                        isMyCameraMuted: _liveKitService.isCameraMuted,
+                        isVideoStripVisible: _isVideoStripVisible,
+                        onToggleVideoStrip: _toggleVideoStrip,
+                      )
+                    : _buildCallOnlyLayout(isLandscape),
+              ),
             ),
 
             // Top Status Bar (Identity & Room indicator)
@@ -377,8 +544,9 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
+                          // Call duration timer
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                             decoration: BoxDecoration(
                               color: AppTheme.surface.withOpacity(0.85),
                               borderRadius: BorderRadius.circular(16),
@@ -401,14 +569,35 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                             ),
                           ),
                           const SizedBox(width: 8),
+                          // Dedicated Screen Rotate Button (Cleanly spaced, NO overlap)
+                          InkWell(
+                            onTap: _toggleOrientation,
+                            borderRadius: BorderRadius.circular(20),
+                            child: Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: AppTheme.surface.withOpacity(0.85),
+                                shape: BoxShape.circle,
+                                border: Border.all(color: AppTheme.primaryRose.withOpacity(0.4)),
+                              ),
+                              child: const Icon(
+                                Icons.screen_rotation_rounded,
+                                color: Colors.white,
+                                size: 16,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          // Live Call / Cinema Status
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                             decoration: BoxDecoration(
                               color: AppTheme.success.withOpacity(0.2),
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(color: AppTheme.success.withOpacity(0.5)),
                             ),
                             child: Row(
+                              mainAxisSize: MainAxisSize.min,
                               children: [
                                 const CircleAvatar(radius: 3, backgroundColor: AppTheme.success),
                                 const SizedBox(width: 6),
@@ -526,6 +715,33 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                 ),
               ),
 
+            // Romantic In-Movie Chat Overlay (Translucent auto-fading bubbles)
+            Positioned(
+              bottom: 95,
+              left: 16,
+              child: InMovieChatOverlay(messages: _chatMessages),
+            ),
+
+            // Romantic Floating Emoji Reactions (Floating hearts & kisses)
+            FloatingEmojiOverlay(emojis: _floatingEmojis),
+
+            // Romantic Reaction Picker Capsule
+            if (_showReactionPicker)
+              Positioned(
+                bottom: 84,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: ReactionPickerBar(
+                    onSelectEmoji: (emoji) {
+                      _sendEmojiReaction(emoji);
+                      setState(() => _showReactionPicker = false);
+                    },
+                    onClose: () => setState(() => _showReactionPicker = false),
+                  ),
+                ),
+              ),
+
             // Bottom Auto-Hiding Controls
             AnimatedPositioned(
               duration: const Duration(milliseconds: 250),
@@ -565,11 +781,24 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                     onToggleVideoStrip: _toggleVideoStrip,
                     onToggleFullscreen: _toggleFullscreen,
                     onOpenQualitySheet: _openQualitySheet,
+                    onToggleReactions: () {
+                      setState(() => _showReactionPicker = !_showReactionPicker);
+                    },
+                    onOpenChat: _openChatSheet,
+                    onTakeSnapshot: _takeSnapshot,
                     onLeaveCall: _leaveCall,
                   ),
                 ),
               ),
             ),
+
+            // Keepsake Camera Shutter Flash Effect
+            if (_isShutterFlashing)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: Container(color: Colors.white.withOpacity(0.9)),
+                ),
+              ),
           ],
         ),
       ),

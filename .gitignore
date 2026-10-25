@@ -27,4 +27,6 @@ Thumbs.db
 *.iml
 *.zip
 release-apk/
+build_output/
+*.apk
 bin/
