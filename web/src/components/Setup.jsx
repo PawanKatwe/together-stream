@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 export default function Setup({ onJoin }) {
   const [identity, setIdentity] = useState('Pawan (Laptop)');
   const [serverUrl, setServerUrl] = useState(
-    localStorage.getItem('token_server_url') || 'http://localhost:3000'
+    localStorage.getItem('token_server_url') || 'https://together-stream-server.onrender.com'
   );
   const [passcode, setPasscode] = useState('PP@160227');
   const [showConfig, setShowConfig] = useState(false);
