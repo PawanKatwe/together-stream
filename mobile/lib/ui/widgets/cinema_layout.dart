@@ -44,9 +44,9 @@ class CinemaLayout extends StatelessWidget {
               children: [
                 // Shared Screen Stream (Letterboxed, No Cropping)
                 if (screenShareTrack != null)
-                  VideoTrackWidget(
+                  VideoTrackRenderer(
                     screenShareTrack!,
-                    fit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
+                    fit: VideoViewFit.contain,
                   )
                 else
                   Center(

@@ -4,17 +4,25 @@ import 'package:livekit_client/livekit_client.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 enum ScreenQualityPreset {
-  p480('480p (Low Data)', 854, 480, 24, 800000),
-  p720('720p (Recommended)', 1280, 720, 30, 2500000),
-  p1080('1080p (Crisp HD)', 1920, 1080, 30, 4500000);
+  p480('480p (Low Data)', 854, 480, 24, 800000, VideoParametersPresets.h480_169),
+  p720('720p (Recommended)', 1280, 720, 30, 2500000, VideoParametersPresets.h720_169),
+  p1080('1080p (Crisp HD)', 1920, 1080, 30, 4500000, VideoParametersPresets.h1080_169);
 
   final String label;
   final int width;
   final int height;
   final int frameRate;
   final int bitrate;
+  final VideoParameters videoParameters;
 
-  const ScreenQualityPreset(this.label, this.width, this.height, this.frameRate, this.bitrate);
+  const ScreenQualityPreset(
+    this.label,
+    this.width,
+    this.height,
+    this.frameRate,
+    this.bitrate,
+    this.videoParameters,
+  );
 }
 
 class LiveKitService extends ChangeNotifier {
@@ -272,12 +280,8 @@ class LiveKitService extends ChangeNotifier {
       await Permission.notification.request();
 
       final captureOptions = ScreenShareCaptureOptions(
-        useSystemAudio: true, // Enables AudioPlaybackCapture for movie sound
-        params: VideoParameters(
-          dimensions: VideoDimensions(width: _currentQuality.width, height: _currentQuality.height),
-          maxBitrate: _currentQuality.bitrate,
-          maxFramerate: _currentQuality.frameRate,
-        ),
+        captureScreenAudio: true, // Enables system audio capture for movie sound
+        params: _currentQuality.videoParameters,
       );
 
       await participant.setScreenShareEnabled(

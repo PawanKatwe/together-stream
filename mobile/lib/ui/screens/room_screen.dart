@@ -238,7 +238,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
                       myName: widget.myIdentity,
                       partnerName: partnerName,
                       isMyMicMuted: _liveKitService.isMicMuted,
-                      isPartnerMicMuted: _liveKitService.remoteParticipant?.audioTrackPublications.firstOrNull?.isMuted ?? false,
+                      isPartnerMicMuted: _liveKitService.remoteParticipant?.audioTrackPublications.firstOrNull?.muted ?? false,
                       isMyCameraMuted: _liveKitService.isCameraMuted,
                       isVideoStripVisible: _isVideoStripVisible,
                       onToggleVideoStrip: _toggleVideoStrip,
@@ -394,7 +394,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
         ? VideoTile(
             title: partnerName,
             track: remoteTrack,
-            isMuted: remoteParticipant.audioTrackPublications.firstOrNull?.isMuted ?? false,
+            isMuted: remoteParticipant.audioTrackPublications.firstOrNull?.muted ?? false,
             isLocal: false,
           )
         : _buildWaitingTile();

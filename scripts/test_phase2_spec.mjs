@@ -53,8 +53,8 @@ assert(
   'LiveKitService implements 480p, 720p, and 1080p quality presets'
 );
 assert(
-  livekitContent.includes('useSystemAudio: true'),
-  'LiveKitService enables AudioPlaybackCapture (useSystemAudio: true) for movie audio'
+  livekitContent.includes('captureScreenAudio: true'),
+  'LiveKitService enables AudioPlaybackCapture for movie audio'
 );
 assert(
   livekitContent.includes('captureScreenAudio: true'),

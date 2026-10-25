@@ -35,10 +35,10 @@ class VideoTile extends StatelessWidget {
         children: [
           // Video Layer or Avatar Placeholder
           if (track != null)
-            VideoTrackWidget(
+            VideoTrackRenderer(
               track!,
-              fit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
-              mirror: isLocal,
+              fit: VideoViewFit.cover,
+              mirrorMode: isLocal ? VideoViewMirrorMode.mirror : VideoViewMirrorMode.off,
             )
           else
             Container(
