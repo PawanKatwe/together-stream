@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import '../../services/remote_config_service.dart';
 
 class FloatingEmojiData {
   final String id;
@@ -131,8 +132,6 @@ class ReactionPickerBar extends StatelessWidget {
   final ValueChanged<String> onSelectEmoji;
   final VoidCallback? onClose;
 
-  static const List<String> availableEmojis = ['❤️', '💋', '😂', '🥺', '🔥', '👏'];
-
   const ReactionPickerBar({
     super.key,
     required this.onSelectEmoji,
@@ -141,6 +140,8 @@ class ReactionPickerBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final emojiList = RemoteConfigService.emojis;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: BoxDecoration(
@@ -157,7 +158,7 @@ class ReactionPickerBar extends StatelessWidget {
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
-        children: availableEmojis.map((emoji) {
+        children: emojiList.map((emoji) {
           return Padding(
             padding: const EdgeInsets.symmetric(horizontal: 6),
             child: InkWell(

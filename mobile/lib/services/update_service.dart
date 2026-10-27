@@ -19,7 +19,7 @@ class UpdateInfo {
 }
 
 class UpdateService {
-  static const String currentVersion = '1.2.0';
+  static const String currentVersion = '1.2.1';
   static const String releasesApiUrl =
       'https://api.github.com/repos/PawanKatwe/together-stream/releases/latest';
   static const String fallbackDownloadUrl =

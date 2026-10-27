@@ -28,6 +28,25 @@ app.get('/health', (req, res) => {
   });
 });
 
+// App Remote Configuration endpoint (Server-Driven Config for emojis, phrases, etc.)
+app.get('/config', (req, res) => {
+  res.json({
+    status: 'ok',
+    version: '1.2.1',
+    emojis: ['❤️', '😊', '😂', '🥺', '🔥', '👏'],
+    quickPhrases: [
+      'I love you ❤️',
+      'Look at that! 😂',
+      'So romantic 🥺',
+      'Wait, what happened? 🍿',
+      'Hold my hand 💕',
+      'BRB, 1 sec! 🥤'
+    ],
+    roomName: FIXED_ROOM_NAME,
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Universal APK Download redirect endpoint
 app.get('/download', async (req, res) => {
   try {

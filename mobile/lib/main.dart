@@ -2,11 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'core/theme.dart';
+import 'services/remote_config_service.dart';
 import 'ui/screens/room_screen.dart';
 import 'ui/screens/setup_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Load and sync server-driven remote config (emojis, phrases, etc.)
+  await RemoteConfigService.init();
 
   // Allow both portrait and landscape orientation
   await SystemChrome.setPreferredOrientations([

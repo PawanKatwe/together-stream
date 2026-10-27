@@ -49,10 +49,13 @@ class CinemaLayout extends StatelessWidget {
                 // Priority 1: In-App Cinema Media Player (MP4/MKV/YouTube)
                 if (mediaWidget != null)
                   mediaWidget!
-                // Priority 2: Screen Share Stream from Laptop/Partner
+                // Priority 2: Screen Share Stream from Laptop/Partner (Strict Contain, zero stretching)
                 else if (screenShareTrack != null)
-                  VideoTrackRenderer(
-                    screenShareTrack!,
+                  Center(
+                    child: VideoTrackRenderer(
+                      screenShareTrack!,
+                      fit: VideoViewFit.contain,
+                    ),
                   )
                 else
                   Center(

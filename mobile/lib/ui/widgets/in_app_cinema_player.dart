@@ -54,11 +54,13 @@ class _InAppCinemaPlayerState extends State<InAppCinemaPlayer> {
 
   void _toggleFitMode() {
     setState(() {
-      _fitMode = _fitMode == BoxFit.contain ? BoxFit.fitWidth : BoxFit.contain;
+      _fitMode = _fitMode == BoxFit.contain ? BoxFit.cover : BoxFit.contain;
     });
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(_fitMode == BoxFit.contain ? 'Aspect Ratio: Fit to Screen' : 'Aspect Ratio: Fill Width'),
+        content: Text(_fitMode == BoxFit.contain
+            ? 'Aspect Ratio: Fit to Screen (Original Ratio, No Stretch)'
+            : 'Aspect Ratio: Fill Screen (Zoomed, No Distortion)'),
         duration: const Duration(seconds: 1),
         behavior: SnackBarBehavior.floating,
       ),
@@ -310,20 +312,34 @@ class _InAppCinemaPlayerState extends State<InAppCinemaPlayer> {
     if (service.mediaType == MediaSourceType.localFile) {
       final controller = service.videoPlayerController;
       if (controller != null && controller.value.isInitialized) {
-        final size = controller.value.size;
         final aspect = controller.value.aspectRatio;
-        return FittedBox(
-          fit: _fitMode,
-          alignment: Alignment.center,
-          child: SizedBox(
-            width: size.width > 0 ? size.width : 1600,
-            height: size.height > 0 ? size.height : 900,
+        final validAspect = aspect > 0 ? aspect : 16 / 9;
+
+        if (_fitMode == BoxFit.contain) {
+          // Strictly preserves natural aspect ratio with clean letterboxing/pillarboxing (ZERO stretching)
+          return Center(
             child: AspectRatio(
-              aspectRatio: aspect > 0 ? aspect : 16 / 9,
+              aspectRatio: validAspect,
               child: VideoPlayer(controller),
             ),
-          ),
-        );
+          );
+        } else {
+          // Fill screen mode: zooms in uniformly without any stretching or skewing
+          final size = controller.value.size;
+          return SizedBox.expand(
+            child: FittedBox(
+              fit: BoxFit.cover,
+              child: SizedBox(
+                width: size.width > 0 ? size.width : 1600,
+                height: size.height > 0 ? size.height : 900,
+                child: AspectRatio(
+                  aspectRatio: validAspect,
+                  child: VideoPlayer(controller),
+                ),
+              ),
+            ),
+          );
+        }
       } else {
         return const Center(
           child: CircularProgressIndicator(color: AppTheme.primaryRose),
@@ -332,12 +348,10 @@ class _InAppCinemaPlayerState extends State<InAppCinemaPlayer> {
     } else if (service.mediaType == MediaSourceType.youtube) {
       final controller = service.youtubePlayerController;
       if (controller != null) {
-        return FittedBox(
-          fit: _fitMode,
-          alignment: Alignment.center,
-          child: SizedBox(
-            width: service.isPortraitVideo ? 1080 : 1920,
-            height: service.isPortraitVideo ? 1920 : 1080,
+        final double aspect = service.isPortraitVideo ? (9.0 / 16.0) : (16.0 / 9.0);
+        return Center(
+          child: AspectRatio(
+            aspectRatio: aspect,
             child: YoutubePlayer(
               controller: controller,
               showVideoProgressIndicator: true,

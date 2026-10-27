@@ -52,6 +52,7 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
   bool _isVideoStripVisible = true;
   bool _isFullscreen = false;
   bool _wasCinemaActive = false;
+  bool? _lastIsPortrait;
 
   // Romantic Couple Features
   final GlobalKey _screenshotKey = GlobalKey();
@@ -125,12 +126,27 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     if (orientation == Orientation.landscape) {
       SystemChrome.setPreferredOrientations([
         DeviceOrientation.portraitUp,
+        DeviceOrientation.portraitDown,
       ]);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Switched to Portrait mode 📱'),
+          duration: Duration(seconds: 1),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     } else {
       SystemChrome.setPreferredOrientations([
         DeviceOrientation.landscapeLeft,
         DeviceOrientation.landscapeRight,
       ]);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Switched to Landscape mode 🎬'),
+          duration: Duration(seconds: 1),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
   }
 
@@ -292,22 +308,29 @@ class _RoomScreenState extends State<RoomScreen> with WidgetsBindingObserver {
     final isCinemaActive = _mediaSyncService.hasMedia || _liveKitService.isAnyScreenShareActive;
 
     // Handle orientation in cinema mode
-    if (isCinemaActive && !_wasCinemaActive) {
-      _wasCinemaActive = true;
-      if (_mediaSyncService.isPortraitVideo) {
-        SystemChrome.setPreferredOrientations([
-          DeviceOrientation.portraitUp,
-        ]);
-      } else {
-        SystemChrome.setPreferredOrientations([
-          DeviceOrientation.landscapeLeft,
-          DeviceOrientation.landscapeRight,
-        ]);
+    if (isCinemaActive) {
+      final isPortrait = _mediaSyncService.isPortraitVideo;
+      if (!_wasCinemaActive || _lastIsPortrait != isPortrait) {
+        _wasCinemaActive = true;
+        _lastIsPortrait = isPortrait;
+        if (isPortrait) {
+          SystemChrome.setPreferredOrientations([
+            DeviceOrientation.portraitUp,
+            DeviceOrientation.portraitDown,
+          ]);
+        } else {
+          SystemChrome.setPreferredOrientations([
+            DeviceOrientation.landscapeLeft,
+            DeviceOrientation.landscapeRight,
+          ]);
+        }
       }
-    } else if (!isCinemaActive && _wasCinemaActive) {
+    } else if (_wasCinemaActive) {
       _wasCinemaActive = false;
+      _lastIsPortrait = null;
       SystemChrome.setPreferredOrientations([
         DeviceOrientation.portraitUp,
+        DeviceOrientation.portraitDown,
         DeviceOrientation.landscapeLeft,
         DeviceOrientation.landscapeRight,
       ]);

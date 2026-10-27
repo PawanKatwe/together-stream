@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/theme.dart';
+import '../../services/remote_config_service.dart';
 
 class InMovieChatMessage {
   final String id;
@@ -141,14 +142,7 @@ class InMovieChatSheet extends StatefulWidget {
 class _InMovieChatSheetState extends State<InMovieChatSheet> {
   final TextEditingController _controller = TextEditingController();
 
-  static const List<String> quickPhrases = [
-    'I love you ❤️',
-    'Look at that! 😂',
-    'So romantic 🥺',
-    'Wait, what happened? 🍿',
-    'Hold my hand 💕',
-    'BRB, 1 sec! 🥤',
-  ];
+  List<String> get quickPhrases => RemoteConfigService.quickPhrases;
 
   void _send(String text) {
     final trimmed = text.trim();
