@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:livekit_client/livekit_client.dart';
 import '../../core/theme.dart';
 import 'video_tile.dart';
@@ -54,7 +55,7 @@ class CinemaLayout extends StatelessWidget {
                   Center(
                     child: VideoTrackRenderer(
                       screenShareTrack!,
-                      fit: VideoViewFit.contain,
+                      fit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain,
                     ),
                   )
                 else
