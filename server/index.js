@@ -1,9 +1,16 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
 import { AccessToken } from 'livekit-server-sdk';
 
 dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const publicPath = path.join(__dirname, 'public');
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -18,13 +25,16 @@ const FIXED_ROOM_NAME = process.env.ROOM_NAME || 'PP';
 app.use(cors());
 app.use(express.json());
 
+// Serve static TogetherStream Web App
+app.use(express.static(publicPath));
+
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
-    service: 'TogetherStream Token Server',
+    service: 'TogetherStream Token Server & Web App',
     room: FIXED_ROOM_NAME,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 });
 
@@ -40,10 +50,10 @@ app.get('/config', (req, res) => {
       'So romantic 🥺',
       'Wait, what happened? 🍿',
       'Hold my hand 💕',
-      'BRB, 1 sec! 🥤'
+      'BRB, 1 sec! 🥤',
     ],
     roomName: FIXED_ROOM_NAME,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 });
 
@@ -51,11 +61,11 @@ app.get('/config', (req, res) => {
 app.get('/download', async (req, res) => {
   try {
     const response = await fetch('https://api.github.com/repos/PawanKatwe/together-stream/releases/latest', {
-      headers: { 'User-Agent': 'TogetherStream-Server' }
+      headers: { 'User-Agent': 'TogetherStream-Server' },
     });
     if (response.ok) {
       const data = await response.json();
-      const apkAsset = data.assets?.find(a => a.name.endsWith('.apk'));
+      const apkAsset = data.assets?.find((a) => a.name.endsWith('.apk'));
       if (apkAsset && apkAsset.browser_download_url) {
         return res.redirect(apkAsset.browser_download_url);
       }
@@ -67,12 +77,6 @@ app.get('/download', async (req, res) => {
   res.redirect('https://github.com/PawanKatwe/together-stream/releases/latest');
 });
 
-app.get('/', (req, res) => {
-  res.json({
-    message: 'TogetherStream private server running. POST /token to acquire an access token.'
-  });
-});
-
 // Primary Token Minting Endpoint
 app.post('/token', async (req, res) => {
   try {
@@ -81,14 +85,14 @@ app.post('/token', async (req, res) => {
     // 1. Validate Secret Passcode
     if (!passcode || passcode !== APP_PASSCODE) {
       return res.status(401).json({
-        error: 'Unauthorized: Invalid passcode'
+        error: 'Unauthorized: Invalid passcode',
       });
     }
 
     // 2. Validate Identity
     if (!identity || typeof identity !== 'string' || identity.trim().length === 0) {
       return res.status(400).json({
-        error: 'Bad Request: Identity is required'
+        error: 'Bad Request: Identity is required',
       });
     }
 
@@ -97,7 +101,7 @@ app.post('/token', async (req, res) => {
     // 3. Verify Server LiveKit Credentials
     if (!LIVEKIT_API_KEY || !LIVEKIT_API_SECRET || !LIVEKIT_URL) {
       return res.status(500).json({
-        error: 'Server Misconfiguration: LIVEKIT_API_KEY, LIVEKIT_API_SECRET, or LIVEKIT_URL is missing'
+        error: 'Server Misconfiguration: LIVEKIT_API_KEY, LIVEKIT_API_SECRET, or LIVEKIT_URL is missing',
       });
     }
 
@@ -123,18 +127,30 @@ app.post('/token', async (req, res) => {
       token: jwtToken,
       url: LIVEKIT_URL,
       room: FIXED_ROOM_NAME,
-      identity: cleanIdentity
+      identity: cleanIdentity,
     });
   } catch (err) {
     console.error('Error generating token:', err);
     return res.status(500).json({
       error: 'Failed to mint token',
-      details: err.message
+      details: err.message,
+    });
+  }
+});
+
+// Fallback GET route: Serve TogetherStream Web App index.html
+app.get('*', (req, res) => {
+  const indexPath = path.join(publicPath, 'index.html');
+  if (fs.existsSync(indexPath)) {
+    res.sendFile(indexPath);
+  } else {
+    res.json({
+      message: 'TogetherStream private server running. POST /token to acquire an access token.',
     });
   }
 });
 
 app.listen(port, () => {
-  console.log(`TogetherStream token server listening on port ${port}`);
+  console.log(`TogetherStream token server & web app listening on port ${port}`);
   console.log(`Configured Room: ${FIXED_ROOM_NAME}`);
 });

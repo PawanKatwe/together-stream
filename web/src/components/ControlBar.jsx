@@ -4,12 +4,18 @@ export default function ControlBar({
   isMicMuted,
   isCameraMuted,
   isScreenSharing,
-  isAnyScreenShareActive,
+  isAnyMediaOrScreenActive,
   isVideoStripVisible,
   isFullscreen,
+  hasMultipleCameras,
   onToggleMic,
   onToggleCamera,
+  onFlipCamera,
   onToggleScreenShare,
+  onOpenMovieMenu,
+  onToggleReactions,
+  onOpenChat,
+  onTakeSnapshot,
   onToggleVideoStrip,
   onToggleFullscreen,
   onLeaveCall,
@@ -24,23 +30,29 @@ export default function ControlBar({
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    fontSize: '18px',
-    transition: 'all 0.2s ease',
+    fontSize: '17px',
+    transition: 'all 0.18s ease',
+    flexShrink: 0,
   });
 
   return (
-    <div style={{
-      backgroundColor: 'rgba(29, 23, 30, 0.92)',
-      backdropFilter: 'blur(12px)',
-      padding: '8px 18px',
-      borderRadius: '36px',
-      border: '1px solid rgba(226, 132, 156, 0.25)',
-      boxShadow: '0 8px 30px rgba(0, 0, 0, 0.6)',
-      display: 'flex',
-      alignItems: 'center',
-      gap: '12px',
-    }}>
-      {/* Microphone Toggle */}
+    <div
+      style={{
+        backgroundColor: 'rgba(29, 23, 30, 0.94)',
+        backdropFilter: 'blur(16px)',
+        padding: '8px 16px',
+        borderRadius: '36px',
+        border: '1.5px solid rgba(226, 132, 156, 0.28)',
+        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.75)',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        maxWidth: '96vw',
+        overflowX: 'auto',
+        scrollbarWidth: 'none',
+      }}
+    >
+      {/* 1. Microphone Toggle */}
       <button
         style={btnStyle(!isMicMuted, '#E2849C')}
         onClick={onToggleMic}
@@ -49,7 +61,7 @@ export default function ControlBar({
         {isMicMuted ? '🔇' : '🎙️'}
       </button>
 
-      {/* Camera Toggle */}
+      {/* 2. Camera Toggle */}
       <button
         style={btnStyle(!isCameraMuted, '#E2849C')}
         onClick={onToggleCamera}
@@ -58,17 +70,64 @@ export default function ControlBar({
         {isCameraMuted ? '📷' : '📹'}
       </button>
 
-      {/* Share Chrome Tab with Audio */}
+      {/* 3. Flip Camera (Tablets / Laptops with 2+ cameras) */}
+      {hasMultipleCameras && (
+        <button
+          style={btnStyle(false, '#C4B5FD')}
+          onClick={onFlipCamera}
+          title="Flip / Switch Camera"
+        >
+          🔄
+        </button>
+      )}
+
+      {/* 4. Screen Sharing (Laptops / Desktops / Supported Tablets) */}
       <button
         style={btnStyle(isScreenSharing, '#F7A8BE')}
         onClick={onToggleScreenShare}
-        title={isScreenSharing ? 'Stop Sharing' : 'Share Chrome Tab with Audio'}
+        title={isScreenSharing ? 'Stop Screen Share' : 'Share Screen / Browser Tab with Audio'}
       >
         {isScreenSharing ? '⏹️' : '🖥️'}
       </button>
 
-      {/* Hide / Show Video Strip */}
-      {isAnyScreenShareActive && (
+      {/* 5. Cinema Movie Menu (Local Movie / YouTube) */}
+      <button
+        style={btnStyle(isAnyMediaOrScreenActive, '#E2849C')}
+        onClick={onOpenMovieMenu}
+        title="Watch Movie Together (Local File or YouTube)"
+      >
+        🎬
+      </button>
+
+      {/* 6. Floating Emoji Reactions */}
+      <button
+        style={btnStyle(false, '#E2849C')}
+        onClick={onToggleReactions}
+        title="Send Floating Emoji Reaction ❤️"
+      >
+        ❤️
+      </button>
+
+      {/* 7. In-Movie Chat */}
+      <button
+        style={btnStyle(false, '#C4B5FD')}
+        onClick={onOpenChat}
+        title="In-Movie Chat & Whispers 💬"
+      >
+        💬
+      </button>
+
+      {/* 8. Snapshot Keepsake Button */}
+      <button
+        style={btnStyle(false, '#FCD34D')}
+        onClick={onTakeSnapshot}
+        title="Take Polaroid Snapshot Keepsake 📸"
+      >
+        📸
+      </button>
+
+      {/* 9. Hide / Show Video Strip */}
+      {isAnyMediaOrScreenActive && (
         <button
           style={btnStyle(isVideoStripVisible, '#C4B5FD')}
           onClick={onToggleVideoStrip}
@@ -78,7 +137,7 @@ export default function ControlBar({
         </button>
       )}
 
-      {/* Fullscreen Toggle */}
+      {/* 10. Fullscreen Toggle */}
       <button
         style={btnStyle(isFullscreen, '#34D399')}
         onClick={onToggleFullscreen}
@@ -87,8 +146,10 @@ export default function ControlBar({
         {isFullscreen ? '↙️' : '⛶'}
       </button>
 
-      {/* Leave Call */}
+      {/* 11. End Call */}
       <button
+        onClick={onLeaveCall}
+        title="End Call / Leave Cinema"
         style={{
           width: '42px',
           height: '42px',
@@ -99,10 +160,10 @@ export default function ControlBar({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          marginLeft: '4px'
+          boxShadow: '0 2px 10px rgba(239, 68, 68, 0.4)',
+          marginLeft: '4px',
+          flexShrink: 0,
         }}
-        onClick={onLeaveCall}
-        title="Leave Cinema Room"
       >
         📞
       </button>

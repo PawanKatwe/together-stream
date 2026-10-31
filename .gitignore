@@ -26,6 +26,7 @@ Thumbs.db
 .vscode/
 *.iml
 *.zip
+web/dist/
 release-apk/
 build_output/
 *.apk
