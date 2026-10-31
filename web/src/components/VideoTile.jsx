@@ -45,7 +45,7 @@ export default function VideoTile({ title, track, isMuted, isSpeaking, isLocal }
           }}
           autoPlay
           playsInline
-          muted={isLocal} // Avoid local microphone loopback
+          muted={true} // Camera feeds are strictly video. Audio is rendered independently via RemoteAudioRenderer
         />
       ) : (
         <div

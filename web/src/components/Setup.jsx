@@ -30,6 +30,17 @@ export default function Setup({ onJoin }) {
   }, []);
 
   const handleJoin = (baseName) => {
+    // Warm up AudioContext on direct user gesture to satisfy iOS Safari & Firefox autoplay policies
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (AudioContextClass) {
+      try {
+        const dummyCtx = new AudioContextClass();
+        dummyCtx.resume().then(() => {
+          setTimeout(() => dummyCtx.close().catch(() => {}), 1500);
+        }).catch(() => {});
+      } catch (e) {}
+    }
+
     const fullIdentity = `${baseName} (${deviceType})`;
     localStorage.setItem('token_server_url', serverUrl);
     onJoin({

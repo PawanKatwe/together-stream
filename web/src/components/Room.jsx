@@ -4,6 +4,7 @@ import VideoTile from './VideoTile';
 import ControlBar from './ControlBar';
 import EchoWarningBanner from './EchoWarningBanner';
 import CinemaPlayer from './CinemaPlayer';
+import RemoteAudioRenderer from './RemoteAudioRenderer';
 import { FloatingEmojiOverlay, ReactionPicker } from './FloatingEmojis';
 import { InMovieChatOverlay, InMovieChatModal } from './InMovieChat';
 import SnapshotModal from './SnapshotModal';
@@ -26,6 +27,8 @@ export default function Room({ connectionConfig, onLeave }) {
   const [remoteParticipants, setRemoteParticipants] = useState([]);
   const [screenShareTrack, setScreenShareTrack] = useState(null);
   const [screenSharerName, setScreenSharerName] = useState(null);
+  const [canPlaybackAudio, setCanPlaybackAudio] = useState(true);
+  const [activeSpeakers, setActiveSpeakers] = useState([]);
 
   // In-App Cinema & Media Sync States
   const [localMediaFile, setLocalMediaFile] = useState(null);
@@ -200,6 +203,14 @@ export default function Room({ connectionConfig, onLeave }) {
         // 3. Publish initial camera & mic
         await lkRoom.localParticipant.enableCameraAndMicrophone();
 
+        // 4. Start audio engine (crucial for iPad Safari & Firefox audio unlock)
+        try {
+          await lkRoom.startAudio();
+        } catch (audioErr) {
+          console.warn('Initial startAudio request was paused by browser policy:', audioErr);
+        }
+        setCanPlaybackAudio(lkRoom.canPlaybackAudio);
+
         setRoom(lkRoom);
         setIsConnecting(false);
         updateTracks(lkRoom);
@@ -339,6 +350,13 @@ export default function Room({ connectionConfig, onLeave }) {
       .on(RoomEvent.LocalTrackUnpublished, () => updateTracks(lkRoom))
       .on(RoomEvent.TrackMuted, () => updateTracks(lkRoom))
       .on(RoomEvent.TrackUnmuted, () => updateTracks(lkRoom))
+      .on(RoomEvent.AudioPlaybackStatusChanged, (canPlay) => {
+        console.log('LiveKit AudioPlaybackStatusChanged:', canPlay);
+        setCanPlaybackAudio(canPlay);
+      })
+      .on(RoomEvent.ActiveSpeakersChanged, (speakers) => {
+        setActiveSpeakers(speakers.map((s) => s.identity));
+      })
       .on(RoomEvent.DataReceived, handleDataReceived);
 
     initRoom();
@@ -349,6 +367,22 @@ export default function Room({ connectionConfig, onLeave }) {
       lkRoom.disconnect();
     };
   }, [connectionConfig, partnerName]);
+
+  // Resume / Unlock AudioContext on any user interaction if browser blocked autoplay (iPad Safari & Firefox)
+  useEffect(() => {
+    if (canPlaybackAudio || !room) return;
+    const unlockAudio = () => {
+      room.startAudio().then(() => {
+        setCanPlaybackAudio(true);
+      }).catch(() => {});
+    };
+    window.addEventListener('click', unlockAudio, { once: true });
+    window.addEventListener('touchstart', unlockAudio, { once: true });
+    return () => {
+      window.removeEventListener('click', unlockAudio);
+      window.removeEventListener('touchstart', unlockAudio);
+    };
+  }, [canPlaybackAudio, room]);
 
   // Controls Handlers
   const toggleMic = async () => {
@@ -604,6 +638,45 @@ export default function Room({ connectionConfig, onLeave }) {
         overflow: 'hidden',
       }}
     >
+      {/* Remote Audio Track Renderer for Partner & Screen Share Audio */}
+      <RemoteAudioRenderer room={room} />
+
+      {/* Prominent Autoplay Unlock Banner for Safari (iPad) & Firefox */}
+      {!canPlaybackAudio && (
+        <button
+          onClick={async (e) => {
+            e.stopPropagation();
+            if (room) {
+              await room.startAudio();
+              setCanPlaybackAudio(true);
+            }
+          }}
+          className="pulse"
+          style={{
+            position: 'absolute',
+            top: '72px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            backgroundColor: '#E2849C',
+            color: '#FFFFFF',
+            padding: '12px 24px',
+            borderRadius: '24px',
+            fontWeight: 'bold',
+            fontSize: '13px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            boxShadow: '0 8px 30px rgba(226, 132, 156, 0.6)',
+            zIndex: 100,
+            cursor: 'pointer',
+            border: 'none',
+          }}
+        >
+          <span>🔇</span>
+          <span>Audio paused by browser — Tap here to hear {partnerName} 🔊</span>
+        </button>
+      )}
+
       {/* Echo Warning Banner for Laptop Tab Audio */}
       <EchoWarningBanner isSharingAudio={isScreenSharing} />
 
@@ -770,6 +843,7 @@ export default function Room({ connectionConfig, onLeave }) {
                 title={connectionConfig.identity}
                 track={localVideoTrack}
                 isMuted={isMicMuted}
+                isSpeaking={activeSpeakers.includes(connectionConfig.identity)}
                 isLocal={true}
               />
             </div>
@@ -785,6 +859,7 @@ export default function Room({ connectionConfig, onLeave }) {
                       title={p.name || p.identity}
                       track={pub ? pub.track : null}
                       isMuted={p.isMuted}
+                      isSpeaking={activeSpeakers.includes(p.identity)}
                       isLocal={false}
                     />
                   </div>
@@ -826,6 +901,7 @@ export default function Room({ connectionConfig, onLeave }) {
             title={connectionConfig.identity}
             track={localVideoTrack}
             isMuted={isMicMuted}
+            isSpeaking={activeSpeakers.includes(connectionConfig.identity)}
             isLocal={true}
           />
           {remoteParticipants.length > 0 ? (
@@ -837,6 +913,7 @@ export default function Room({ connectionConfig, onLeave }) {
                 )?.track
               }
               isMuted={remoteParticipants[0].isMuted}
+              isSpeaking={activeSpeakers.includes(remoteParticipants[0].identity)}
               isLocal={false}
             />
           ) : (

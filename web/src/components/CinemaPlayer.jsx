@@ -132,6 +132,7 @@ export default function CinemaPlayer({
           }}
           autoPlay
           playsInline
+          muted={true}
         />
       )}
 
