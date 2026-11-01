@@ -9,6 +9,7 @@ import { FloatingEmojiOverlay, ReactionPicker } from './FloatingEmojis';
 import { InMovieChatOverlay, InMovieChatModal } from './InMovieChat';
 import SnapshotModal from './SnapshotModal';
 import MovieMenuModal from './MovieMenuModal';
+import CenterStageModal from './CenterStageModal';
 
 export default function Room({ connectionConfig, onLeave }) {
   const [room, setRoom] = useState(null);
@@ -45,6 +46,7 @@ export default function Room({ connectionConfig, onLeave }) {
   const [showChatModal, setShowChatModal] = useState(false);
   const [snapshotDataUrl, setSnapshotDataUrl] = useState(null);
   const [showMovieMenu, setShowMovieMenu] = useState(false);
+  const [showCenterStageModal, setShowCenterStageModal] = useState(false);
   const [toastNotice, setToastNotice] = useState(null);
 
   // UI & Timer States
@@ -56,6 +58,10 @@ export default function Room({ connectionConfig, onLeave }) {
   const containerRef = useRef(null);
 
   const partnerName = connectionConfig.identity.includes('Pawan') ? 'Priya' : 'Pawan';
+  const isTablet =
+    connectionConfig.deviceType === 'Tablet' ||
+    /(ipad|tablet|(android(?!.*mobile)))/i.test(navigator.userAgent) ||
+    (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent));
 
   // Broadcast data channel packet to partner
   const sendDataMessage = useCallback(
@@ -748,8 +754,32 @@ export default function Room({ connectionConfig, onLeave }) {
           </span>
         </div>
 
-        {/* Right: Stopwatch Timer & Live Badge */}
+        {/* Right: Stopwatch Timer, iPad Center Stage & Live Badge */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {/* Center Stage Pill for iPad / Tablet */}
+          {isTablet && (
+            <button
+              onClick={() => setShowCenterStageModal(true)}
+              style={{
+                backgroundColor: 'rgba(226, 132, 156, 0.2)',
+                border: '1px solid rgba(226, 132, 156, 0.45)',
+                borderRadius: '16px',
+                padding: '6px 12px',
+                color: '#F7A8BE',
+                fontSize: '11px',
+                fontWeight: 'bold',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                cursor: 'pointer',
+              }}
+              title="iPad Center Stage & Portrait Framing Guide"
+            >
+              <span>📐</span>
+              <span>Center Stage</span>
+            </button>
+          )}
+
           {/* Stopwatch Call Duration */}
           <div
             style={{
@@ -986,6 +1016,11 @@ export default function Room({ connectionConfig, onLeave }) {
         />
       )}
 
+      {/* iPad Center Stage Guide Modal */}
+      {showCenterStageModal && (
+        <CenterStageModal onClose={() => setShowCenterStageModal(false)} />
+      )}
+
       {/* Auto-Hiding Bottom Control Bar */}
       <div
         style={{
@@ -1006,6 +1041,8 @@ export default function Room({ connectionConfig, onLeave }) {
           isVideoStripVisible={isVideoStripVisible}
           isFullscreen={isFullscreen}
           hasMultipleCameras={hasMultipleCameras}
+          isTablet={isTablet}
+          onOpenCenterStage={() => setShowCenterStageModal(true)}
           onToggleMic={toggleMic}
           onToggleCamera={toggleCamera}
           onFlipCamera={flipCamera}

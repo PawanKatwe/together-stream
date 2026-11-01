@@ -8,6 +8,8 @@ export default function ControlBar({
   isVideoStripVisible,
   isFullscreen,
   hasMultipleCameras,
+  isTablet,
+  onOpenCenterStage,
   onToggleMic,
   onToggleCamera,
   onFlipCamera,
@@ -78,6 +80,17 @@ export default function ControlBar({
           title="Flip / Switch Camera"
         >
           🔄
+        </button>
+      )}
+
+      {/* 3b. Center Stage Guide for iPad / Tablets */}
+      {isTablet && (
+        <button
+          style={btnStyle(false, '#C4B5FD')}
+          onClick={onOpenCenterStage}
+          title="iPad Center Stage & Portrait Framing Guide"
+        >
+          📐
         </button>
       )}
 
